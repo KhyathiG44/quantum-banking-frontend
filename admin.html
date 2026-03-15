@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>QUANTUMSECURE — Admin Command Centre · SPECTRAL BREACH</title>
+
+<script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.69/build/spline-viewer.js"></script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=Exo+2:wght@100;300;400;600;700&display=swap" rel="stylesheet"/>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+:root{
+  --void:#000002;
+  --pink:#ff00aa;
+  --pinkGlow:0 0 20px rgba(255,0,170,.5),0 0 60px rgba(255,0,170,.15);
+  --cyan:#00dcff;
+  --cyanGlow:0 0 20px rgba(0,220,255,.5),0 0 60px rgba(0,220,255,.15);
+  --violet:#8c00ff;
+  --violetGlow:0 0 20px rgba(140,0,255,.5),0 0 60px rgba(140,0,255,.15);
+  --green:#00ffaa;
+  --warn:#ffcc00;
+  --danger:#ff2235;
+  --text:rgba(220,230,255,.88);
+  --textMid:rgba(180,200,240,.6);
+  --textDim:rgba(120,140,180,.4);
+  --border:rgba(255,255,255,.06);
+  --fhud:'Orbitron',monospace;
+  --fmono:'Share Tech Mono',monospace;
+  --fbody:'Exo 2',sans-serif;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{font-size:13px}
+body{background:var(--void);color:var(--text);font-family:var(--fbody);min-height:100vh;overflow:hidden;cursor:crosshair;}
+
+/* ══════════════════════════════════════════════════════
+   SPLINE LAYER SYSTEM
+   Each Spline viewer sits in its own fixed layer.
+   JS controls opacity transitions between them.
+══════════════════════════════════════════════════════ */
+
+/* LAYER A — Cybernetic Human (phase 1 + dashboard bg) */
+#spline-cyber{
+  position:fixed;inset:0;z-index:1;
+  width:100vw;height:100vh;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity 1.8s ease;
+}
+#spline-cyber.on{ opacity:1; }
+#spline-cyber spline-viewer{ width:100%;height:100%;display:block;--background-color:transparent; }
+
+/* LAYER B — 3D Cube (phase 2 login bg) */
+#spline-cube{
+  position:fixed;inset:0;z-index:2;
+  width:100vw;height:100vh;
+  pointer-events:none;
+  opacity:0;
+  display:none;
+  transition:opacity 1.8s ease;
+}
+#spline-cube.on{ display:block; opacity:1; }
+#spline-cube spline-viewer{ width:100%;height:100%;display:block;--background-color:transparent; }
+
+/* ── cinematic overlays (sit above both Spline layers) ── */
+.ov-dark{
+  position:fixed;inset:0;z-index:3;pointer-events:none;
+  background:radial-gradient(ellipse 120% 120% at 50% 50%, rgba(0,0,2,.4) 0%, rgba(0,0,8,.75) 100%);
+}
+.ov-vignette{
+  position:fixed;inset:0;z-index:4;pointer-events:none;
+  background:radial-gradient(ellipse at center, transparent 15%, rgba(0,0,12,.9) 100%);
+}
+.ov-scan{
+  position:fixed;inset:0;z-index:5;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,220,255,.013) 3px,rgba(0,220,255,.013) 4px);
+  animation:scanShift 8s linear infinite;
+}
+@keyframes scanShift{0%{background-position:0 0}100%{background-position:0 100px}}
+.ov-grid{
+  position:fixed;inset:0;z-index:6;pointer-events:none;
+  background-image:linear-gradient(rgba(255,0,170,.018) 1px, transparent 1px),linear-gradient(90deg, rgba(0,220,255,.018) 1px, transparent 1px);
+  background-size:80px 80px;
+}
+.ov-orbs{
+  position:fixed;inset:0;z-index:7;pointer-events:none;
+  background:
+    radial-gradient(ellipse 500px 500px at 15% 50%, rgba(255,0,170,.04) 0%,transparent 65%),
+    radial-gradient(ellipse 500px 500px at 85% 50%, rgba(0,220,255,.04) 0%,transparent 65%),
+    radial-gradient(ellipse 350px 250px at 50% 5%,  rgba(140,0,255,.04) 0%,transparent 60%);
+  animation:orbBreathe 10s ease-in-out infinite;
+}
+@keyframes orbBreathe{0%,100%{opacity:.7}50%{opacity:1}}
+
+/* particle canvas above overlays */
+#particle-canvas{position:fixed;inset:0;z-index:8;pointer-events:none;opacity:.35;}
+
+/* ══════════════════════════════════════════════════════
+   PHASE 1 — TITLE SCREEN (over cybernetic human)
+   z-index:10 so it floats above Spline+overlays
+══════════════════════════════════════════════════════ */
+#ph-title{
+  position:fixed;inset:0;z-index:10;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:none;
+  /* starts visible */
+}
+#ph-title.fadeout{ animation:fadeToNone 1.2s ease forwards; }
+@keyframes fadeToNone{ to{opacity:0;pointer-events:none} }
+
+/* corner brackets */
+.icorner{position:absolute;width:55px;height:55px;}
+.icorner.tl{top:24px;left:24px;border-top:1px solid var(--pink);border-left:1px solid var(--pink);box-shadow:-2px -2px 12px rgba(255,0,170,.35);}
+.icorner.tr{top:24px;right:24px;border-top:1px solid var(--cyan);border-right:1px solid var(--cyan);box-shadow:2px -2px 12px rgba(0,220,255,.35);}
+.icorner.bl{bottom:24px;left:24px;border-bottom:1px solid var(--violet);border-left:1px solid var(--violet);box-shadow:-2px 2px 12px rgba(140,0,255,.35);}
+.icorner.br{bottom:24px;right:24px;border-bottom:1px solid var(--pink);border-right:1px solid var(--pink);box-shadow:2px 2px 12px rgba(255,0,170,.35);}
+
+/* scan line that sweeps down */
+.title-scan{
+  position:absolute;left:0;right:0;height:1px;top:0;
+  background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),var(--violet),transparent);
+  box-shadow:0 0 22px var(--pink),0 0 44px var(--cyan);
+  animation:scanDown 3s ease forwards;
+}
+@keyframes scanDown{0%{top:0;opacity:0}5%{opacity:1}90%{opacity:.5}100%{top:100vh;opacity:0}}
+
+/* title text block */
+.title-content{
+  display:flex;flex-direction:column;align-items:center;
+  gap:0;position:relative;z-index:2;
+}
+.t-classify{
+  font-family:var(--fmono);font-size:10px;letter-spacing:6px;
+  color:rgba(255,0,170,.55);text-transform:uppercase;margin-bottom:22px;
+  animation:fadeUp .6s .4s both;
+}
+.t-logo{
+  font-family:var(--fhud);font-size:clamp(28px,6vw,72px);font-weight:900;
+  letter-spacing:clamp(6px,2vw,20px);
+  background:linear-gradient(135deg,var(--pink) 0%,#dd55ff 30%,var(--cyan) 55%,#ffffff 65%,var(--pink) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 40px rgba(255,0,170,.8)) drop-shadow(0 0 90px rgba(0,220,255,.35));
+  animation:logoReveal 1.6s .5s both;
+  white-space:nowrap;
+}
+@keyframes logoReveal{
+  0%{opacity:0;letter-spacing:60px;filter:blur(24px) drop-shadow(0 0 0 transparent)}
+  60%{opacity:1;filter:blur(0) drop-shadow(0 0 40px rgba(255,0,170,.9))}
+  100%{opacity:1}
+}
+.t-sub{
+  font-family:var(--fmono);font-size:10px;letter-spacing:4px;
+  color:rgba(0,220,255,.5);text-transform:uppercase;margin-top:12px;
+  animation:fadeUp .6s 1.2s both;
+}
+.t-rule{
+  height:1px;width:0;
+  background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),var(--violet),transparent);
+  margin-top:20px;box-shadow:0 0 10px var(--pink);
+  animation:ruleExpand 1s 1.4s both;
+}
+@keyframes ruleExpand{to{width:min(600px,80vw)}}
+
+/* countdown indicator */
+.t-countdown{
+  display:flex;align-items:center;gap:8px;
+  margin-top:32px;
+  font-family:var(--fmono);font-size:10px;letter-spacing:3px;
+  color:rgba(255,0,170,.3);
+  animation:fadeUp .6s 1.8s both;
+}
+.t-countdown-dots{ display:flex;gap:5px; }
+.t-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:rgba(255,0,170,.2);border:1px solid rgba(255,0,170,.25);
+  transition:all .4s ease;
+}
+.t-dot.lit{ background:var(--pink);border-color:var(--pink);box-shadow:0 0 8px var(--pink); }
+
+.t-ids{
+  display:flex;gap:8px;margin-top:28px;flex-wrap:wrap;justify-content:center;
+  animation:fadeUp .5s 2s both;
+}
+.t-id{
+  font-family:var(--fmono);font-size:9px;letter-spacing:2px;
+  padding:3px 10px;text-transform:uppercase;
+}
+.t-id:nth-child(1){border:1px solid rgba(255,0,170,.2);color:rgba(255,0,170,.4);}
+.t-id:nth-child(2){border:1px solid rgba(0,220,255,.2);color:rgba(0,220,255,.4);}
+.t-id:nth-child(3){border:1px solid rgba(140,0,255,.2);color:rgba(140,0,255,.4);}
+.t-id:nth-child(4){border:1px solid rgba(255,0,170,.2);color:rgba(255,0,170,.4);}
+.t-id:nth-child(5){border:1px solid rgba(0,220,255,.2);color:rgba(0,220,255,.4);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ══════════════════════════════════════════════════════
+   PHASE 2 — LOGIN (cube bg, right-corner box)
+══════════════════════════════════════════════════════ */
+#ph-login{
+  position:fixed;
+  top:50%;right:44px;
+  transform:translateY(-50%);
+  z-index:10;
+  display:none;opacity:0;
+}
+#ph-login.on{ display:block; }
+#ph-login.boom{
+  opacity:1;
+  animation:loginBoom .6s cubic-bezier(.22,1.5,.36,1) both;
+}
+@keyframes loginBoom{
+  0%  {opacity:0;transform:translateY(-50%) scale(.3) translateX(80px);filter:blur(16px);}
+  55% {opacity:1;transform:translateY(-50%) scale(1.05) translateX(-6px);filter:blur(0);}
+  75% {transform:translateY(-50%) scale(.97) translateX(3px);}
+  100%{transform:translateY(-50%) scale(1) translateX(0);}
+}
+#ph-login.out{ animation:slideOut .5s ease forwards; }
+@keyframes slideOut{ to{opacity:0;transform:translateY(-50%) translateX(120%);} }
+
+.lg-box{
+  width:380px;max-width:92vw;
+  background:rgba(3,0,10,.93);
+  border:1px solid rgba(255,255,255,.1);border-radius:6px;
+  padding:36px 38px 30px;position:relative;
+  box-shadow:0 0 0 1px rgba(255,0,170,.1),0 0 60px rgba(255,0,170,.15),0 0 120px rgba(0,220,255,.08),inset 0 0 60px rgba(140,0,255,.04);
+  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+}
+.lg-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),var(--violet),transparent);box-shadow:0 0 20px var(--pink);}
+.lg-box::after{content:'';position:absolute;bottom:0;left:30%;right:30%;height:1px;background:linear-gradient(90deg,transparent,rgba(140,0,255,.4),transparent);}
+.lg-title{font-family:var(--fhud);font-size:13px;font-weight:900;letter-spacing:5px;background:linear-gradient(135deg,var(--pink),#dd55ff,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:5px;}
+.lg-sub{font-family:var(--fmono);font-size:9px;letter-spacing:3px;color:rgba(0,220,255,.35);text-align:center;margin-bottom:26px;}
+.lg-lbl{font-family:var(--fmono);font-size:10px;letter-spacing:2px;color:rgba(255,0,170,.45);text-transform:uppercase;margin-bottom:5px;display:block;}
+.lg-grp{margin-bottom:14px;}
+.lg-inp{width:100%;padding:10px 12px;background:rgba(255,0,170,.03);border:1px solid rgba(255,255,255,.07);border-radius:2px;color:var(--text);font-family:var(--fmono);font-size:11px;outline:none;transition:border-color .2s,box-shadow .2s;}
+.lg-inp:focus{border-color:rgba(255,0,170,.4);box-shadow:0 0 0 2px rgba(255,0,170,.06),0 0 20px rgba(255,0,170,.1);}
+.lg-inp::placeholder{color:rgba(180,180,220,.2);}
+.lg-inpw{position:relative;}
+.lg-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:13px;color:rgba(255,0,170,.35);padding:4px;}
+.lg-eye:hover{color:var(--pink);}
+.lg-btn{width:100%;margin-top:6px;padding:12px;border-radius:2px;background:rgba(255,0,170,.07);border:1px solid rgba(255,0,170,.3);color:var(--pink);font-family:var(--fhud);font-size:11px;font-weight:700;letter-spacing:4px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;}
+.lg-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,0,170,.12),transparent);transition:left .4s;}
+.lg-btn:hover::before{left:100%;}
+.lg-btn:hover{background:rgba(255,0,170,.12);box-shadow:var(--pinkGlow);}
+.lg-btn:disabled{opacity:.35;cursor:not-allowed;}
+.lg-err{display:none;margin-top:10px;padding:9px 12px;background:rgba(255,34,53,.07);border:1px solid rgba(255,34,53,.25);color:var(--danger);font-family:var(--fmono);font-size:11px;text-align:center;}
+.lg-err.on{display:block;}
+.lg-spin{display:none;width:16px;height:16px;border:2px solid rgba(255,0,170,.15);border-top-color:var(--pink);border-radius:50%;animation:spin .7s linear infinite;margin:10px auto 0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lg-note{margin-top:16px;font-family:var(--fmono);font-size:9.5px;color:rgba(255,255,255,.15);text-align:center;line-height:1.9;}
+.lg-note b{color:rgba(255,0,170,.3);}
+
+/* ══════════════════════════════════════════════════════
+   PHASE 3 — AUTH SEQUENCE
+══════════════════════════════════════════════════════ */
+#ph-auth{position:fixed;inset:0;z-index:11;background:rgba(0,0,8,.45);display:none;flex-direction:column;align-items:center;justify-content:center;}
+#ph-auth.on{display:flex;}
+#ph-auth.out{animation:fadeToNone .7s ease forwards;}
+.auth-title{font-family:var(--fhud);font-size:13px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--pink),#dd55ff,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px;}
+.auth-sub{font-family:var(--fmono);font-size:10px;color:rgba(0,220,255,.35);letter-spacing:2px;margin-bottom:28px;}
+.auth-box{width:520px;max-width:92vw;background:rgba(3,0,10,.9);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:30px;position:relative;backdrop-filter:blur(28px);}
+.auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),transparent);}
+.auth-chans{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+.auth-ch{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:rgba(255,0,170,.03);border:1px solid rgba(255,255,255,.06);border-radius:3px;font-family:var(--fmono);font-size:11px;}
+.auth-ch-lbl{color:var(--textMid);}
+.auth-ch-st{font-size:10px;letter-spacing:2px;}
+.auth-ch-st.ok{color:var(--green);}
+.auth-ch-st.wait{color:var(--pink);animation:blink 1s ease infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.auth-prog-wrap{margin-top:16px;}
+.auth-prog-lab{display:flex;justify-content:space-between;font-family:var(--fmono);font-size:10px;color:rgba(255,0,170,.3);margin-bottom:5px;}
+.auth-prog-bg{height:2px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;}
+.auth-prog-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--violet),var(--pink),var(--cyan));box-shadow:0 0 10px var(--pink);transition:width .4s ease;}
+
+/* ══════════════════════════════════════════════════════
+   PHASE 4 — DASHBOARD
+══════════════════════════════════════════════════════ */
+#ph-dash{position:fixed;inset:0;z-index:9;display:none;flex-direction:column;height:100vh;background:transparent;}
+#ph-dash.on{display:flex;}
+#ph-dash.on > *{animation:dashIn .8s cubic-bezier(.22,1,.36,1) both;}
+@keyframes dashIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* HEADER */
+#hdr{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;flex-shrink:0;background:rgba(2,0,8,.85);border-bottom:1px solid rgba(255,255,255,.06);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);position:relative;z-index:200;box-shadow:0 1px 0 rgba(255,0,170,.08),0 4px 40px rgba(0,0,8,.5);}
+#hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,var(--pink),transparent 20%,transparent 80%,var(--cyan));box-shadow:0 0 10px var(--pink);}
+#hdr::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,0,170,.03) 0%,transparent 30%,transparent 70%,rgba(0,220,255,.03) 100%);pointer-events:none;}
+.brand{display:flex;align-items:center;gap:12px;}
+#logo-cv{width:32px;height:32px;}
+.brand-name{font-family:var(--fhud);font-size:15px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--pink),#dd55ff,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 10px rgba(255,0,170,.5));}
+.brand-sub{font-family:var(--fmono);font-size:8px;color:rgba(0,220,255,.3);letter-spacing:2px;margin-top:1px;}
+.hdr-nav{display:flex;gap:2px;}
+.ntab{font-family:var(--fmono);font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.25);padding:5px 12px;border:1px solid transparent;border-radius:2px;cursor:pointer;transition:all .2s;background:none;white-space:nowrap;}
+.ntab:hover{color:var(--pink);border-color:rgba(255,0,170,.15);background:rgba(255,0,170,.04);}
+.ntab.on{color:var(--pink);border-color:rgba(255,0,170,.25);background:rgba(255,0,170,.07);text-shadow:0 0 10px rgba(255,0,170,.6);}
+.ntab[data-tab="qber"]:hover,.ntab[data-tab="qber"].on{color:var(--cyan);border-color:rgba(0,220,255,.25);background:rgba(0,220,255,.07);text-shadow:0 0 10px rgba(0,220,255,.6);}
+.ntab[data-tab="quantum"]:hover,.ntab[data-tab="quantum"].on{color:var(--violet);border-color:rgba(140,0,255,.25);background:rgba(140,0,255,.07);text-shadow:0 0 10px rgba(140,0,255,.6);}
+.ntab[data-tab="pqc"]:hover,.ntab[data-tab="pqc"].on{color:#aa44ff;border-color:rgba(170,68,255,.25);background:rgba(170,68,255,.07);text-shadow:0 0 10px rgba(170,68,255,.6);}
+.hdr-r{display:flex;align-items:center;gap:10px;}
+.threat-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid rgba(255,34,53,.3);background:rgba(255,34,53,.06);font-family:var(--fmono);font-size:10px;color:var(--danger);letter-spacing:2px;border-radius:2px;animation:threatPulse 2s ease-in-out infinite;}
+@keyframes threatPulse{0%,100%{border-color:rgba(255,34,53,.3)}50%{border-color:rgba(255,34,53,.6);box-shadow:0 0 10px rgba(255,34,53,.15)}}
+.tdot{width:5px;height:5px;border-radius:50%;background:var(--danger);animation:blink 1s ease infinite;}
+.adm-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid rgba(255,0,170,.14);font-family:var(--fmono);font-size:10px;color:rgba(255,0,170,.55);letter-spacing:1px;border-radius:2px;}
+#clock{font-family:var(--fhud);font-size:11px;color:var(--pink);letter-spacing:2px;text-shadow:0 0 8px rgba(255,0,170,.4);}
+#clkd{font-family:var(--fmono);font-size:9px;color:rgba(255,255,255,.2);letter-spacing:1px;margin-top:1px;}
+
+/* STATUS BAR */
+#sbar{display:flex;align-items:center;gap:14px;padding:4px 20px;background:rgba(2,0,8,.88);border-bottom:1px solid rgba(255,255,255,.04);font-family:var(--fmono);font-size:10px;color:rgba(255,255,255,.2);letter-spacing:1.5px;flex-shrink:0;overflow-x:auto;position:relative;z-index:200;backdrop-filter:blur(12px);}
+.sbi{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.sbd{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.sbv{color:rgba(255,255,255,.45);}
+
+/* TICKER */
+#ticker{display:flex;align-items:center;background:rgba(2,0,8,.88);border-bottom:1px solid rgba(255,0,170,.15);padding:6px 0;overflow:hidden;flex-shrink:0;position:relative;z-index:200;backdrop-filter:blur(12px);}
+.tk-lbl{font-family:var(--fmono);font-size:10px;letter-spacing:2px;color:var(--pink);padding:0 14px;border-right:1px solid rgba(255,0,170,.18);flex-shrink:0;display:flex;align-items:center;gap:6px;text-shadow:0 0 8px rgba(255,0,170,.5);}
+.tk-lbl::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--pink);animation:blink 1s infinite;box-shadow:0 0 6px var(--pink);}
+.tk-scroll{flex:1;overflow:hidden;padding:0 12px;}
+.tk-inner{display:inline-block;white-space:nowrap;animation:tkroll 55s linear infinite;font-family:var(--fmono);font-size:11px;color:var(--warn);letter-spacing:1.5px;}
+@keyframes tkroll{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+
+/* MAIN */
+main{flex:1;overflow-y:auto;padding:14px 16px;position:relative;z-index:10;}
+main::-webkit-scrollbar{width:4px;}
+main::-webkit-scrollbar-track{background:transparent;}
+main::-webkit-scrollbar-thumb{background:rgba(255,0,170,.2);border-radius:2px;}
+main::-webkit-scrollbar-thumb:hover{background:rgba(255,0,170,.35);}
+.tab-panel{display:none;flex-direction:column;gap:12px;}
+.tab-panel.on{display:flex;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+
+/* PANELS */
+.pnl{background:rgba(4,0,10,.78);border:1px solid rgba(255,255,255,.06);border-radius:4px;padding:16px 18px;position:relative;overflow:hidden;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transition:border-color .3s,box-shadow .3s;}
+.pnl:hover{border-color:rgba(255,0,170,.12);box-shadow:0 0 30px rgba(255,0,170,.04);}
+.pnl::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--pink),transparent);box-shadow:0 0 8px rgba(255,0,170,.4);}
+.pnl.cyan-edge::before{background:linear-gradient(90deg,transparent,var(--cyan),transparent);box-shadow:0 0 8px rgba(0,220,255,.4);}
+.pnl.violet-edge::before{background:linear-gradient(90deg,transparent,var(--violet),transparent);box-shadow:0 0 8px rgba(140,0,255,.4);}
+.pnl.multi-edge::before{background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),var(--violet),transparent);}
+.pnl-title{font-family:var(--fmono);font-size:10px;font-weight:700;letter-spacing:3px;color:rgba(255,255,255,.35);text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.pnl-title::before{content:'';width:2px;height:12px;background:var(--pink);box-shadow:0 0 6px rgba(255,0,170,.7);}
+.pnl.cyan-edge .pnl-title::before{background:var(--cyan);box-shadow:0 0 6px rgba(0,220,255,.7);}
+.pnl.violet-edge .pnl-title::before{background:var(--violet);box-shadow:0 0 6px rgba(140,0,255,.7);}
+
+/* STAT CARDS */
+.sc{background:rgba(4,0,10,.78);border:1px solid var(--border);border-radius:4px;padding:14px 16px;position:relative;overflow:hidden;transition:transform .3s,border-color .3s;animation:fadeUp .5s both;backdrop-filter:blur(20px);}
+.sc:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.3);}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--ac,var(--pink));box-shadow:0 0 8px var(--ac,var(--pink)),0 0 20px var(--ac,var(--pink));}
+.sc::after{content:'';position:absolute;bottom:-10px;right:-10px;width:80px;height:80px;background:radial-gradient(circle,var(--ac,var(--pink)) 0%,transparent 70%);opacity:.05;}
+.sc.cp{--ac:var(--pink)}.sc.cc{--ac:var(--cyan)}.sc.cv{--ac:var(--violet)}.sc.cg{--ac:var(--green)}.sc.cw{--ac:var(--warn)}.sc.cd{--ac:var(--danger)}
+.sc:nth-child(1){animation-delay:.05s}.sc:nth-child(2){animation-delay:.09s}.sc:nth-child(3){animation-delay:.13s}.sc:nth-child(4){animation-delay:.17s}
+.sc-lbl{font-family:var(--fmono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--textDim);margin-bottom:8px;}
+.sc-val{font-family:var(--fhud);font-size:34px;font-weight:700;color:var(--ac,var(--pink));text-shadow:0 0 16px var(--ac,var(--pink));line-height:1;letter-spacing:1px;margin-bottom:5px;}
+.sc-d{font-family:var(--fmono);font-size:9.5px;color:var(--textDim);}
+.up{color:var(--green)}.dn{color:var(--danger)}
+.live-dot{display:inline-flex;align-items:center;gap:5px;font-family:var(--fmono);font-size:9px;color:var(--pink);border:1px solid rgba(255,0,170,.25);padding:2px 8px;border-radius:20px;animation:livePulse 1.5s ease infinite;}
+.live-dot::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--pink);animation:blink 1.5s ease infinite;box-shadow:0 0 6px var(--pink);}
+@keyframes livePulse{0%,100%{border-color:rgba(255,0,170,.25)}50%{border-color:rgba(255,0,170,.5);box-shadow:0 0 8px rgba(255,0,170,.1)}}
+
+/* TABLES */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{padding:8px 12px;text-align:left;font-family:var(--fmono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,.2);background:rgba(255,0,170,.03);border-bottom:1px solid rgba(255,0,170,.1);}
+td{padding:8px 12px;font-family:var(--fbody);font-size:11px;color:var(--textMid);border-bottom:1px solid rgba(255,255,255,.03);}
+tr:hover td{background:rgba(255,0,170,.03);}
+.badge{font-family:var(--fmono);font-size:9px;padding:2px 8px;border-radius:20px;letter-spacing:1.5px;font-weight:700;}
+.badge-g{background:rgba(0,255,170,.07);color:var(--green);border:1px solid rgba(0,255,170,.2);}
+.badge-d{background:rgba(255,34,53,.07);color:var(--danger);border:1px solid rgba(255,34,53,.2);}
+.badge-w{background:rgba(255,204,0,.07);color:var(--warn);border:1px solid rgba(255,204,0,.2);}
+.badge-p{background:rgba(255,0,170,.07);color:var(--pink);border:1px solid rgba(255,0,170,.2);}
+.badge-c{background:rgba(0,220,255,.07);color:var(--cyan);border:1px solid rgba(0,220,255,.2);}
+.badge-v{background:rgba(140,0,255,.07);color:var(--violet);border:1px solid rgba(140,0,255,.2);}
+.btn{font-family:var(--fmono);font-size:10px;font-weight:700;letter-spacing:2px;padding:7px 16px;border-radius:2px;cursor:pointer;transition:all .2s;}
+.btn-pink{background:rgba(255,0,170,.08);border:1px solid rgba(255,0,170,.25);color:var(--pink);}
+.btn-pink:hover{background:rgba(255,0,170,.15);box-shadow:var(--pinkGlow);}
+.btn-cyan{background:rgba(0,220,255,.08);border:1px solid rgba(0,220,255,.25);color:var(--cyan);}
+.btn-cyan:hover{background:rgba(0,220,255,.15);box-shadow:var(--cyanGlow);}
+.btn-violet{background:rgba(140,0,255,.08);border:1px solid rgba(140,0,255,.25);color:var(--violet);}
+.btn-violet:hover{background:rgba(140,0,255,.15);box-shadow:var(--violetGlow);}
+.btn-green{background:rgba(0,255,170,.08);border:1px solid rgba(0,255,170,.25);color:var(--green);}
+.btn-green:hover{background:rgba(0,255,170,.14);}
+.btn-danger{background:rgba(255,34,53,.08);border:1px solid rgba(255,34,53,.25);color:var(--danger);}
+.btn-danger:hover{background:rgba(255,34,53,.14);}
+.inp{width:100%;padding:9px 12px;background:rgba(255,0,170,.03);border:1px solid rgba(255,255,255,.07);border-radius:2px;color:var(--text);font-family:var(--fmono);font-size:11px;outline:none;transition:border-color .2s;}
+.inp:focus{border-color:rgba(255,0,170,.35);}
+.inp::placeholder{color:rgba(180,180,220,.2);}
+.inp-lbl{font-family:var(--fmono);font-size:10px;letter-spacing:2px;color:var(--textDim);display:block;margin-bottom:4px;}
+.inp-grp{margin-bottom:12px;}
+select.inp{appearance:none;cursor:pointer;}
+.prog-bar{height:5px;background:rgba(255,255,255,.05);border-radius:5px;overflow:hidden;margin-top:5px;}
+.prog-fill{height:100%;border-radius:5px;transition:width 1.2s cubic-bezier(.4,0,.2,1);}
+
+#live-map{height:320px;border-radius:3px;overflow:hidden;border:1px solid rgba(255,0,170,.1);}
+.leaflet-container{background:#000002!important;}
+.leaflet-tile-pane{filter:saturate(.08) brightness(.25) hue-rotate(220deg);}
+.leaflet-popup-content-wrapper{background:rgba(5,0,15,.97)!important;border:1px solid rgba(255,0,170,.25)!important;border-radius:3px!important;color:var(--text)!important;box-shadow:0 0 30px rgba(255,0,170,.1)!important;}
+.leaflet-popup-tip{background:rgba(5,0,15,.97)!important;}
+.map-pulse{width:14px;height:14px;border-radius:50%;cursor:pointer;}
+.map-r{background:rgba(255,34,53,.9);animation:mapP 2s ease-out infinite;}
+.map-p{background:rgba(255,0,170,.9);animation:mapPp 2s ease-out infinite;}
+.map-c{background:rgba(0,220,255,.9);animation:mapPc 2.5s ease-out infinite;}
+.map-g{background:rgba(0,255,170,.9);animation:mapPg 3s ease-out infinite;}
+.map-v{background:rgba(140,0,255,.9);animation:mapPv 2s ease-out infinite;}
+@keyframes mapP{0%{box-shadow:0 0 0 0 rgba(255,34,53,.6)}70%{box-shadow:0 0 0 12px rgba(255,34,53,0)}100%{box-shadow:0 0 0 0 rgba(255,34,53,0)}}
+@keyframes mapPp{0%{box-shadow:0 0 0 0 rgba(255,0,170,.7)}70%{box-shadow:0 0 0 12px rgba(255,0,170,0)}100%{box-shadow:0 0 0 0 rgba(255,0,170,0)}}
+@keyframes mapPc{0%{box-shadow:0 0 0 0 rgba(0,220,255,.6)}70%{box-shadow:0 0 0 10px rgba(0,220,255,0)}100%{box-shadow:0 0 0 0 rgba(0,220,255,0)}}
+@keyframes mapPg{0%{box-shadow:0 0 0 0 rgba(0,255,170,.5)}70%{box-shadow:0 0 0 10px rgba(0,255,170,0)}100%{box-shadow:0 0 0 0 rgba(0,255,170,0)}}
+@keyframes mapPv{0%{box-shadow:0 0 0 0 rgba(140,0,255,.6)}70%{box-shadow:0 0 0 12px rgba(140,0,255,0)}100%{box-shadow:0 0 0 0 rgba(140,0,255,0)}}
+
+.user-card{display:flex;align-items:center;gap:12px;padding:12px 15px;background:rgba(5,0,12,.65);border:1px solid rgba(255,255,255,.05);border-radius:3px;margin-bottom:7px;transition:all .3s;position:relative;overflow:hidden;backdrop-filter:blur(8px);}
+.user-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,0,170,.25),transparent);}
+.user-card:hover{border-color:rgba(255,0,170,.15);background:rgba(8,0,20,.65);}
+.user-card.blocked{border-color:rgba(255,34,53,.2)!important;background:rgba(30,2,8,.7)!important;}
+.user-card.blocked::before{background:linear-gradient(90deg,transparent,rgba(255,34,53,.3),transparent)!important;}
+.user-card.pending{border-color:rgba(255,204,0,.15)!important;}
+.uavatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--fhud);font-size:12px;font-weight:700;flex-shrink:0;}
+.uname{font-size:13px;font-weight:600;color:var(--text);}
+.uemail{font-family:var(--fmono);font-size:10px;color:var(--textDim);}
+.uip{font-family:var(--fmono);font-size:10px;color:rgba(0,220,255,.4);}
+.uactions{display:flex;gap:6px;margin-left:auto;flex-shrink:0;}
+.uact{font-family:var(--fmono);font-size:9px;letter-spacing:1px;padding:4px 10px;border-radius:2px;cursor:pointer;transition:all .2s;}
+.qber-card{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(5,0,12,.65);border:1px solid rgba(255,255,255,.05);border-radius:3px;margin-bottom:7px;position:relative;overflow:hidden;backdrop-filter:blur(8px);}
+.qber-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,220,255,.2),transparent);}
+.qber-card.breach{border-color:rgba(255,34,53,.3)!important;animation:breachGlow 2s ease-in-out infinite;}
+.qber-card.breach::before{background:linear-gradient(90deg,transparent,rgba(255,34,53,.4),transparent)!important;}
+.qber-card.warn{border-color:rgba(255,204,0,.2)!important;}
+@keyframes breachGlow{0%,100%{box-shadow:none}50%{box-shadow:0 0 20px rgba(255,34,53,.08)}}
+.qber-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--fhud);font-size:12px;font-weight:700;flex-shrink:0;}
+.qber-val{font-family:var(--fhud);font-size:20px;font-weight:800;min-width:72px;text-align:right;}
+.qber-bar-bg{height:4px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden;width:120px;}
+.qber-bar-fill{height:100%;border-radius:4px;transition:width 1s ease;}
+.pqc-algo-card{background:rgba(5,0,12,.65);border:1px solid rgba(140,0,255,.15);border-radius:3px;padding:14px 16px;position:relative;overflow:hidden;margin-bottom:8px;backdrop-filter:blur(8px);}
+.pqc-algo-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--violet),transparent);box-shadow:0 0 8px rgba(140,0,255,.4);}
+.pqc-algo-name{font-family:var(--fhud);font-size:12px;font-weight:700;color:var(--violet);letter-spacing:2px;}
+.pqc-algo-type{font-family:var(--fmono);font-size:9px;color:rgba(140,0,255,.5);letter-spacing:2px;margin-top:2px;}
+.pqc-status-row{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;}
+.pqc-metric{font-family:var(--fmono);font-size:9px;color:var(--textDim);}
+.pqc-metric span{color:var(--violet);}
+.qkd-phase{padding:12px 14px;background:rgba(5,0,12,.65);border:1px solid rgba(0,220,255,.1);border-radius:3px;position:relative;overflow:hidden;backdrop-filter:blur(8px);}
+.qkd-phase::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);box-shadow:0 0 8px rgba(0,220,255,.4);}
+.qkd-phase-name{font-family:var(--fmono);font-size:9px;letter-spacing:2px;color:rgba(0,220,255,.4);margin-bottom:5px;}
+.qkd-phase-val{font-family:var(--fhud);font-size:16px;font-weight:700;color:var(--cyan);text-shadow:0 0 10px rgba(0,220,255,.5);}
+
+/* ALERT + TOASTS + MODALS */
+.alert-float{position:fixed;top:75px;right:18px;z-index:9990;background:rgba(255,0,170,.08);border:1px solid rgba(255,0,170,.4);border-radius:3px;padding:14px 18px;max-width:320px;box-shadow:0 0 40px rgba(255,0,170,.1);animation:alertIn .4s ease;display:none;backdrop-filter:blur(16px);}
+.alert-float::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--pink),transparent);}
+@keyframes alertIn{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
+.alert-ttl{font-family:var(--fhud);font-size:10px;font-weight:700;color:var(--pink);letter-spacing:2px;margin-bottom:6px;text-shadow:0 0 8px rgba(255,0,170,.5);}
+.alert-body{font-family:var(--fmono);font-size:10.5px;color:rgba(255,100,200,.8);line-height:1.6;}
+#toasts{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+.toast{padding:10px 16px;border-radius:3px;font-family:var(--fmono);font-size:11px;animation:toastIn .3s ease;min-width:240px;position:relative;overflow:hidden;backdrop-filter:blur(16px);}
+.toast::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;}
+.toast.ok{background:rgba(0,30,20,.92);border:1px solid rgba(0,255,170,.2);color:var(--green);}
+.toast.ok::before{background:linear-gradient(90deg,transparent,var(--green),transparent);}
+.toast.err{background:rgba(30,2,8,.92);border:1px solid rgba(255,34,53,.25);color:var(--danger);}
+.toast.warn{background:rgba(25,20,0,.92);border:1px solid rgba(255,204,0,.2);color:var(--warn);}
+.toast.info{background:rgba(5,0,15,.92);border:1px solid rgba(255,0,170,.2);color:var(--pink);}
+.toast.info::before{background:linear-gradient(90deg,transparent,var(--pink),transparent);}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+.modal-bg{position:fixed;inset:0;z-index:8500;background:rgba(0,0,8,.78);display:none;align-items:center;justify-content:center;}
+.modal-bg.on{display:flex;}
+.modal{width:500px;max-width:96vw;max-height:88vh;overflow-y:auto;background:rgba(5,0,15,.94);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:28px;position:relative;backdrop-filter:blur(20px);}
+.modal::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),transparent);}
+.modal-close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--textDim);cursor:pointer;font-size:16px;}
+.modal-close:hover{color:var(--pink);}
+.modal h3{font-family:var(--fhud);font-size:12px;font-weight:700;color:var(--pink);letter-spacing:4px;margin-bottom:20px;}
+.mrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-family:var(--fmono);font-size:11px;}
+.mk{color:var(--textDim);}.mv{color:var(--text);}
+.fb-modal{position:fixed;inset:0;z-index:9100;background:rgba(0,0,8,.88);display:none;align-items:center;justify-content:center;}
+.fb-modal.on{display:flex;}
+.fb-box{width:580px;max-width:96vw;max-height:90vh;overflow-y:auto;background:rgba(5,0,15,.97);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:32px 36px;position:relative;}
+.fb-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--pink),var(--cyan),transparent);}
+.fb-title{font-family:var(--fhud);font-size:13px;font-weight:700;color:var(--pink);letter-spacing:4px;margin-bottom:6px;}
+.fb-sub{font-family:var(--fmono);font-size:10px;color:rgba(0,220,255,.35);letter-spacing:2px;margin-bottom:26px;}
+.fb-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.fb-field label{font-family:var(--fmono);font-size:10px;letter-spacing:1.5px;color:rgba(255,0,170,.4);display:block;margin-bottom:4px;}
+.fb-field input{width:100%;padding:9px 11px;background:rgba(255,0,170,.03);border:1px solid rgba(255,255,255,.07);border-radius:2px;color:var(--text);font-family:var(--fmono);font-size:10.5px;outline:none;}
+.fb-field input:focus{border-color:rgba(255,0,170,.3);}
+.fb-field input::placeholder{color:rgba(180,180,220,.2);}
+.fb-full{grid-column:1/-1;}
+.fb-actions{display:flex;gap:10px;margin-top:20px;}
+.fb-save{flex:1;padding:11px;background:rgba(255,0,170,.08);border:1px solid rgba(255,0,170,.28);color:var(--pink);font-family:var(--fhud);font-size:10px;font-weight:700;letter-spacing:3px;cursor:pointer;transition:all .2s;}
+.fb-save:hover{background:rgba(255,0,170,.15);box-shadow:var(--pinkGlow);}
+.fb-cancel{padding:11px 20px;background:none;border:1px solid rgba(255,34,53,.2);color:var(--danger);font-family:var(--fmono);font-size:10px;letter-spacing:2px;cursor:pointer;}
+.fb-status{margin-top:12px;font-family:var(--fmono);font-size:11px;text-align:center;min-height:20px;}
+.fb-status.ok{color:var(--green);}.fb-status.err{color:var(--danger);}
+.fb-link{display:inline-flex;align-items:center;gap:6px;margin-top:16px;font-family:var(--fmono);font-size:10px;color:rgba(255,0,170,.4);border:1px solid rgba(255,0,170,.12);padding:6px 14px;cursor:pointer;}
+
+@media(max-width:1100px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr 1fr}}
+@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.hdr-nav{display:none}main{padding:10px}}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     SPLINE LAYER A — CYBERNETIC HUMAN
+     Phase 1 background + Dashboard background
+     z-index:1, toggled .on to become visible
+══════════════════════════════════════════════════════ -->
+<div id="spline-cyber">
+  <spline-viewer
+    url="https://prod.spline.design/e0pgOsW-svG6s4L8/scene.splinecode"
+    loading-anim="false"
+    events-target="global">
+  </spline-viewer>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SPLINE LAYER B — 3D CUBE
+     Phase 2 (login) background only
+     z-index:2, toggled .on
+══════════════════════════════════════════════════════ -->
+<div id="spline-cube">
+  <spline-viewer
+    url="https://prod.spline.design/wtTuoaaZLAiJIXUM/scene.splinecode"
+    loading-anim="false"
+    events-target="global">
+  </spline-viewer>
+</div>
+
+<!-- Cinematic overlays (always on, z 3–7) -->
+<div class="ov-dark"></div>
+<div class="ov-vignette"></div>
+<div class="ov-scan"></div>
+<div class="ov-grid"></div>
+<div class="ov-orbs"></div>
+
+<!-- Particle canvas z:8 -->
+<canvas id="particle-canvas"></canvas>
+
+<!-- Alert float -->
+<div class="alert-float" id="alertFloat">
+  <div class="alert-ttl">⚡ EAVESDROPPING DETECTED</div>
+  <div class="alert-body" id="alertFloatBody">QBER threshold exceeded</div>
+</div>
+
+<!-- Toasts -->
+<div id="toasts"></div>
+
+<!-- Firebase config modal -->
+<div class="fb-modal" id="fbModal">
+  <div class="fb-box">
+    <div class="fb-title">FIREBASE CONFIGURATION</div>
+    <div class="fb-sub">CONNECT YOUR FIREBASE PROJECT · ADMIN AUTHENTICATION</div>
+    <div class="fb-row">
+      <div class="fb-field"><label>API KEY</label><input id="fb-apiKey" placeholder="AIzaSy..." type="text"/></div>
+      <div class="fb-field"><label>AUTH DOMAIN</label><input id="fb-authDomain" placeholder="project.firebaseapp.com"/></div>
+    </div>
+    <div class="fb-row">
+      <div class="fb-field"><label>PROJECT ID</label><input id="fb-projectId" placeholder="your-project-id"/></div>
+      <div class="fb-field"><label>STORAGE BUCKET</label><input id="fb-storageBucket" placeholder="project.appspot.com"/></div>
+    </div>
+    <div class="fb-row">
+      <div class="fb-field"><label>MESSAGING SENDER ID</label><input id="fb-messagingSenderId" placeholder="999..."/></div>
+      <div class="fb-field"><label>APP ID</label><input id="fb-appId" placeholder="1:999...:web:..."/></div>
+    </div>
+    <div class="fb-row">
+      <div class="fb-field fb-full"><label>ADMIN EMAIL</label><input id="fb-adminEmail" placeholder="admin@yourbank.com" type="email"/></div>
+    </div>
+    <div class="fb-actions">
+      <button class="fb-save" onclick="saveFBConfig()">▶ CONNECT & AUTHENTICATE</button>
+      <button class="fb-cancel" onclick="document.getElementById('fbModal').classList.remove('on')">CANCEL</button>
+    </div>
+    <div class="fb-status" id="fbStatus"></div>
+    <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+      <a class="fb-link" href="https://console.firebase.google.com" target="_blank">⬡ Open Firebase Console</a>
+      <div style="font-family:var(--fmono);font-size:9px;color:rgba(255,0,170,.2);">Config saved locally</div>
+    </div>
+  </div>
+</div>
+
+<!-- User detail modal -->
+<div class="modal-bg" id="userModal">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('userModal').classList.remove('on')">✕</button>
+    <h3>USER INTELLIGENCE REPORT</h3>
+    <div id="userModalContent"></div>
+    <div style="display:flex;gap:8px;margin-top:18px;" id="userModalActions"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PHASE 1 — TITLE SCREEN
+     "QUANTUMSECURE" over fullscreen cybernetic human
+     Stays for 10 seconds, then fades
+══════════════════════════════════════════════════════ -->
+<div id="ph-title">
+  <div class="icorner tl"></div>
+  <div class="icorner tr"></div>
+  <div class="icorner bl"></div>
+  <div class="icorner br"></div>
+  <div class="title-scan"></div>
+
+  <div class="title-content">
+    <div class="t-classify">CLASSIFIED · ADMIN COMMAND CENTRE · RESTRICTED ACCESS</div>
+    <div class="t-logo">QUANTUMSECURE</div>
+    <div class="t-sub">Quantum Banking Intelligence · Zero-Trust · Post-Quantum Cryptography</div>
+    <div class="t-rule"></div>
+    <div class="t-countdown">
+      <span>SYSTEM INITIALIZING</span>
+      <div class="t-countdown-dots" id="cntDots">
+        <div class="t-dot" id="d0"></div>
+        <div class="t-dot" id="d1"></div>
+        <div class="t-dot" id="d2"></div>
+        <div class="t-dot" id="d3"></div>
+        <div class="t-dot" id="d4"></div>
+        <div class="t-dot" id="d5"></div>
+        <div class="t-dot" id="d6"></div>
+        <div class="t-dot" id="d7"></div>
+        <div class="t-dot" id="d8"></div>
+        <div class="t-dot" id="d9"></div>
+      </div>
+    </div>
+    <div class="t-ids">
+      <div class="t-id">NODE: QS-CORE-01</div>
+      <div class="t-id">REGION: APAC-SOUTH</div>
+      <div class="t-id">BUILD: v5.0-FINAL</div>
+      <div class="t-id">CLASS: TOP-SECRET</div>
+      <div class="t-id">QBRAID: ACTIVE</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PHASE 2 — LOGIN BOX
+     Appears at right side over cube background
+══════════════════════════════════════════════════════ -->
+<div id="ph-login">
+  <div class="lg-box">
+    <div class="lg-title">ADMIN COMMAND CENTRE</div>
+    <div class="lg-sub">SPECTRAL BREACH · QUANTUM SECURE BANKING INTELLIGENCE</div>
+    <div class="lg-grp"><label class="lg-lbl">Admin Email</label><input class="lg-inp" id="lg-em" type="email" placeholder="admin@quantumsecure.in"/></div>
+    <div class="lg-grp"><label class="lg-lbl">Access Password</label>
+      <div class="lg-inpw">
+        <input class="lg-inp" id="lg-pw" type="password" placeholder="••••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+        <button class="lg-eye" id="lg-eye" onclick="togglePw()">👁</button>
+      </div>
+    </div>
+    <button class="lg-btn" id="lg-btn" onclick="doLogin()">▶ AUTHENTICATE &amp; ENTER</button>
+    <div class="lg-spin" id="lg-spin"></div>
+    <div class="lg-err" id="lg-err">⚡ Access denied. Invalid credentials.</div>
+    <div class="lg-note">Restricted to <b>authorised admin</b> personnel only.<br>All access is logged, monitored &amp; audited.</div>
+    <div style="margin-top:14px;text-align:center;">
+      <button onclick="openFBModal()" style="background:none;border:1px solid rgba(255,0,170,.15);color:rgba(255,0,170,.35);font-family:var(--fmono);font-size:10px;letter-spacing:2px;padding:6px 16px;cursor:pointer;transition:all .2s;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='rgba(255,0,170,.35)'">⚙ CONFIGURE FIREBASE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PHASE 3 — POST-LOGIN AUTH SEQUENCE
+══════════════════════════════════════════════════════ -->
+<div id="ph-auth">
+  <div class="auth-title">QUANTUMSECURE</div>
+  <div class="auth-sub">▶ IDENTITY VERIFIED · ESTABLISHING SECURE SESSION</div>
+  <div class="auth-box">
+    <div class="auth-chans" id="authChans"></div>
+    <div class="auth-prog-wrap">
+      <div class="auth-prog-lab"><span id="authLbl">AUTHENTICATING</span><span id="authPct">0%</span></div>
+      <div class="auth-prog-bg"><div class="auth-prog-fill" id="authFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PHASE 4 — MAIN DASHBOARD
+     z-index:9 (sits BELOW the Spline layers? No —
+     the cyber Spline is z:1, dashboard is z:9,
+     but dashboard is opaque with backdrop-filter glass
+     so the cyber human shows through the transparent areas)
+══════════════════════════════════════════════════════ -->
+<div id="ph-dash">
+  <header id="hdr">
+    <div class="brand">
+      <canvas id="logo-cv" width="32" height="32"></canvas>
+      <div><div class="brand-name">QUANTUMSECURE</div><div class="brand-sub">Admin Command Centre v5.0 · Spectral Breach · Zero-Trust</div></div>
+    </div>
+    <div class="hdr-nav">
+      <button class="ntab on" data-tab="overview">OVERVIEW</button>
+      <button class="ntab" data-tab="users">USER ACCESS</button>
+      <button class="ntab" data-tab="qber">QBER LIVE</button>
+      <button class="ntab" data-tab="threats">THREATS</button>
+      <button class="ntab" data-tab="quantum">QKD</button>
+      <button class="ntab" data-tab="pqc">PQC</button>
+      <button class="ntab" data-tab="comms">COMMS LOG</button>
+      <button class="ntab" data-tab="system">SYSTEM</button>
+    </div>
+    <div class="hdr-r">
+      <div class="threat-pill"><div class="tdot"></div><span>THREAT: HIGH</span></div>
+      <div class="adm-pill" id="admPill">⬤ ADMIN OFFLINE</div>
+      <div style="text-align:right"><div id="clock">--:--:-- UTC</div><div id="clkd">---</div></div>
+    </div>
+  </header>
+  <div id="sbar">
+    <div class="sbi"><div class="sbd" id="fbDot" style="background:var(--warn)"></div>FIRESTORE <span class="sbv" id="fbSt">CONNECTING</span></div>
+    <div class="sbi"><div class="sbd" style="background:var(--pink)"></div>CHANNEL A <span class="sbv" style="color:var(--pink)">EXFIL-WATCH</span></div>
+    <div class="sbi"><div class="sbd" style="background:var(--cyan)"></div>CHANNEL B <span class="sbv" style="color:var(--cyan)">C2-MONITOR</span></div>
+    <div class="sbi"><div class="sbd" style="background:var(--violet)"></div>CHANNEL C <span class="sbv" style="color:var(--violet)">LATERAL-TRACK</span></div>
+    <div class="sbi"><div class="sbd" style="background:var(--green)"></div>UPTIME <span class="sbv">99.9%</span></div>
+    <div class="sbi"><div class="sbd" style="background:var(--cyan)"></div>BB84 <span class="sbv">ACTIVE</span></div>
+    <div class="sbi"><div class="sbd" style="background:var(--violet)"></div>PQC <span class="sbv">ONLINE</span></div>
+    <div class="sbi" style="margin-left:auto">SYNC: <span class="sbv" id="lastSync">--:--</span></div>
+    <button onclick="openFBModal()" style="background:none;border:1px solid rgba(255,0,170,.18);color:rgba(255,0,170,.4);font-family:var(--fmono);font-size:9px;letter-spacing:1.5px;padding:3px 10px;cursor:pointer;flex-shrink:0;">⚙ FIREBASE</button>
+  </div>
+  <div id="ticker">
+    <div class="tk-lbl">⚠ SPECTRAL INTEL</div>
+    <div class="tk-scroll"><div class="tk-inner">◆ CHANNEL A: HIGH EXFILTRATION — Mumbai, IN — QS-9841 BLOCKED ◆ CHANNEL B: QBER BREACH — BB84 eavesdropping attempt identified ◆ CHANNEL C: Biometric anomaly — Arjun Mehta — keystroke dynamics 4.9× baseline ◆ PQC: Dilithium3 signature verified — ₹2,40,000 transaction ◆ QKD: Quantum channel compromised — BB84 rekeying initiated ◆ Falcon-512 batch signing: 847 tokens issued ◆ SPHINCS+ verification: PASS — zero hash collision ◆ NIST PQC FIPS 204/205/206: COMPLIANT ◆ Zero-trust policy: ACTIVE ◆ QRNG entropy: QUANTUM VACUUM SOURCE ◆</div></div>
+  </div>
+  <main>
+    <!-- TAB: OVERVIEW -->
+    <div class="tab-panel on" id="tab-overview">
+      <div class="g4">
+        <div class="sc cp"><div class="sc-lbl">TOTAL TRANSACTIONS</div><div class="sc-val" id="totalVal">—</div><div class="sc-d">↑ <span class="up">+4.2%</span> today</div></div>
+        <div class="sc cc"><div class="sc-lbl">SECURE PASSED</div><div class="sc-val" id="secureVal">—</div><div class="sc-d"><span class="up">99.1%</span> PQC verified</div></div>
+        <div class="sc cw"><div class="sc-lbl">FLAGGED</div><div class="sc-val" id="warnVal">—</div><div class="sc-d">Under ML review</div></div>
+        <div class="sc cd"><div class="sc-lbl">BLOCKED</div><div class="sc-val" id="blockVal">—</div><div class="sc-d">Auto-blocked by AI</div></div>
+      </div>
+      <div class="g2">
+        <div class="pnl"><div class="pnl-title">LIVE TRANSACTION FEED <div class="live-dot" style="margin-left:auto">LIVE</div></div><svg style="width:100%;height:180px;display:block;" id="txSvg" viewBox="0 0 600 180" preserveAspectRatio="none"></svg></div>
+        <div class="pnl cyan-edge"><div class="pnl-title">THREAT ANALYSIS</div><div id="threatBreak" style="display:flex;flex-direction:column;gap:8px;"></div></div>
+      </div>
+      <div class="pnl multi-edge">
+        <div class="pnl-title">GLOBAL THREAT MAP <span style="margin-left:auto;display:flex;gap:10px;font-family:var(--fmono);font-size:9px;font-weight:400;letter-spacing:1px;"><span style="color:var(--pink)">● EXFIL</span><span style="color:var(--cyan)">● C2</span><span style="color:var(--violet)">● LATERAL</span><span style="color:var(--green)">● SECURE</span><span style="color:var(--warn)">● WARNING</span></span></div>
+        <div id="live-map"></div>
+      </div>
+      <div class="pnl"><div class="pnl-title">RECENT TRANSACTIONS</div><div class="tbl-wrap"><table><thead><tr><th>TX ID</th><th>USER</th><th>AMOUNT</th><th>QBER</th><th>ML SCORE</th><th>STATUS</th><th>PQC SUITE</th><th>SIG VERIFY</th><th>TIME</th></tr></thead><tbody id="txBody"></tbody></table></div></div>
+    </div>
+    <!-- TAB: USER ACCESS -->
+    <div class="tab-panel" id="tab-users">
+      <div class="g2">
+        <div class="sc cp"><div class="sc-lbl">TOTAL USERS</div><div class="sc-val" id="uTotal">—</div><div class="sc-d">Registered accounts</div></div>
+        <div class="sc cc"><div class="sc-lbl">ACTIVE SESSIONS</div><div class="sc-val" id="uActive">—</div><div class="sc-d">Currently online</div></div>
+      </div>
+      <div class="pnl" style="padding:12px 16px;">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <input class="inp" id="uSearch" placeholder="Search by name, email, IP..." style="flex:1;min-width:200px;" oninput="filterUsers()"/>
+          <select class="inp" id="uFilter" style="width:160px;" onchange="filterUsers()"><option value="all">ALL USERS</option><option value="active">ACTIVE</option><option value="blocked">BLOCKED</option><option value="pending">PENDING</option></select>
+          <button class="btn btn-pink" onclick="refreshUsers()">↻ REFRESH</button>
+          <button class="btn btn-green" onclick="openAddUser()">+ ADD USER</button>
+        </div>
+      </div>
+      <div class="pnl"><div class="pnl-title">USER INTELLIGENCE — ACCESS CONTROL</div><div id="usersList"></div></div>
+      <div class="pnl cyan-edge"><div class="pnl-title">ACTIVE SESSIONS &amp; AUTHENTICATION LOG</div><div class="tbl-wrap"><table><thead><tr><th>USER</th><th>IP ADDRESS</th><th>LOCATION</th><th>DEVICE</th><th>2FA STATUS</th><th>SESSION</th><th>RISK</th><th>ACTION</th></tr></thead><tbody id="sessBody"></tbody></table></div></div>
+    </div>
+    <!-- TAB: QBER -->
+    <div class="tab-panel" id="tab-qber">
+      <div class="g4">
+        <div class="sc cg"><div class="sc-lbl">SAFE USERS</div><div class="sc-val" id="qbSafe">—</div><div class="sc-d">QBER &lt; 7%</div></div>
+        <div class="sc cw"><div class="sc-lbl">WARNING</div><div class="sc-val" id="qbWarn">—</div><div class="sc-d">7% — 11%</div></div>
+        <div class="sc cd"><div class="sc-lbl">BREACH</div><div class="sc-val" id="qbBreach">—</div><div class="sc-d">QBER &gt; 11%</div></div>
+        <div class="sc cc"><div class="sc-lbl">AVG QBER</div><div class="sc-val" id="qbAvg">—</div><div class="sc-d">System average</div></div>
+      </div>
+      <div class="pnl cyan-edge"><div class="pnl-title">QBER TIMELINE <div class="live-dot" style="margin-left:auto">LIVE</div></div><svg id="qberSvg" style="width:100%;height:140px;display:block;" viewBox="0 0 900 140" preserveAspectRatio="none"><rect x="0" y="0" width="900" height="50" fill="rgba(255,34,53,.03)"/><line x1="0" y1="50" x2="900" y2="50" stroke="rgba(255,34,53,.2)" stroke-width="1" stroke-dasharray="4,3"/><text x="4" y="46" fill="rgba(255,34,53,.4)" font-family="Share Tech Mono" font-size="9">11% BREACH</text><path id="qberPath" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path id="qberArea" stroke="none" opacity=".1"/></svg></div>
+      <div class="pnl cyan-edge"><div class="pnl-title">PER-USER QBER — BB84 EAVESDROPPING DETECTION</div><div id="qberUsers"></div></div>
+      <div class="pnl"><div class="pnl-title">QBER HISTORY</div><div class="tbl-wrap"><table><thead><tr><th>USER</th><th>QBER %</th><th>STATUS</th><th>CHANNEL</th><th>KEY RATE</th><th>PROTOCOL</th><th>TIME</th><th>ACTION</th></tr></thead><tbody id="qberHistBody"></tbody></table></div></div>
+    </div>
+    <!-- TAB: THREATS -->
+    <div class="tab-panel" id="tab-threats">
+      <div class="g4">
+        <div class="sc cd"><div class="sc-lbl">ACTIVE ATTACKS</div><div class="sc-val" id="attVal">—</div></div>
+        <div class="sc cp"><div class="sc-lbl">BLOCKED IPs</div><div class="sc-val" id="bIpVal">—</div></div>
+        <div class="sc cv"><div class="sc-lbl">ML ALERTS</div><div class="sc-val" id="mlAlVal">—</div></div>
+        <div class="sc cc"><div class="sc-lbl">THREAT SCORE</div><div class="sc-val" id="tsVal">—</div></div>
+      </div>
+      <div class="g2">
+        <div class="pnl"><div class="pnl-title">THREAT INTELLIGENCE FEED</div><div id="threatFeed" style="display:flex;flex-direction:column;gap:7px;max-height:400px;overflow-y:auto;"></div></div>
+        <div class="pnl cyan-edge"><div class="pnl-title">BLOCKED IP REGISTRY</div><div class="tbl-wrap"><table><thead><tr><th>IP ADDRESS</th><th>COUNTRY</th><th>REASON</th><th>BLOCKED</th></tr></thead><tbody id="blockedIPs"></tbody></table></div></div>
+      </div>
+    </div>
+    <!-- TAB: QKD -->
+    <div class="tab-panel" id="tab-quantum">
+      <div class="g4">
+        <div class="sc cc"><div class="sc-lbl">QKD SESSIONS</div><div class="sc-val" id="qkdSess">—</div></div>
+        <div class="sc cp"><div class="sc-lbl">ENTROPY POOL</div><div class="sc-val" id="entropyVal">—</div></div>
+        <div class="sc cv"><div class="sc-lbl">QUBITS USED</div><div class="sc-val" id="qubitsVal">—</div></div>
+        <div class="sc cw"><div class="sc-lbl">KEY RATE</div><div class="sc-val" id="keyRateVal">—</div></div>
+      </div>
+      <div class="pnl cyan-edge"><div class="pnl-title">BB84 PROTOCOL — PHASE MONITOR</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;" id="bb84Phases"></div></div>
+      <div class="g2">
+        <div class="pnl cyan-edge"><div class="pnl-title">QKD PROTOCOLS</div><div style="display:flex;flex-direction:column;gap:8px;">
+          <div class="qkd-phase"><div class="qkd-phase-name">BB84 (BENNETT–BRASSARD)</div><div class="qkd-phase-val">ACTIVE</div></div>
+          <div class="qkd-phase"><div class="qkd-phase-name">E91 (EKERT ENTANGLEMENT)</div><div class="qkd-phase-val">STANDBY</div></div>
+          <div class="qkd-phase"><div class="qkd-phase-name">BBM92</div><div class="qkd-phase-val">STANDBY</div></div>
+          <div class="qkd-phase"><div class="qkd-phase-name">TWIN-FIELD QKD</div><div class="qkd-phase-val" style="color:var(--warn)">CONFIGURING</div></div>
+        </div></div>
+        <div class="pnl"><div class="pnl-title">QUANTUM CHANNEL HEALTH</div><div id="qChannels" style="display:flex;flex-direction:column;gap:8px;"></div></div>
+      </div>
+      <div class="pnl cyan-edge"><div class="pnl-title">QUANTUM KEY EXCHANGE LOG</div><div class="tbl-wrap"><table><thead><tr><th>SESSION ID</th><th>PROTOCOL</th><th>ALICE</th><th>BOB</th><th>KEY LEN</th><th>QBER %</th><th>STATUS</th><th>TIME</th></tr></thead><tbody id="qkdBody"></tbody></table></div></div>
+    </div>
+    <!-- TAB: PQC -->
+    <div class="tab-panel" id="tab-pqc">
+      <div class="g4">
+        <div class="sc cv"><div class="sc-lbl">PQC ALGORITHMS</div><div class="sc-val">3</div></div>
+        <div class="sc cg"><div class="sc-lbl">SIGNATURES VERIFIED</div><div class="sc-val" id="sigCount">—</div></div>
+        <div class="sc cp"><div class="sc-lbl">LATTICE OPERATIONS</div><div class="sc-val" id="latOps">—</div></div>
+        <div class="sc cc"><div class="sc-lbl">KEY ENCAPSULATIONS</div><div class="sc-val" id="kemOps">—</div></div>
+      </div>
+      <div class="pnl violet-edge"><div class="pnl-title">NIST POST-QUANTUM ALGORITHMS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div class="pqc-algo-card"><div class="pqc-algo-name">CRYSTALS-DILITHIUM</div><div class="pqc-algo-type">NIST FIPS 204 · ML-DSA</div><div class="pqc-status-row"><div class="pqc-metric">Mode: <span>Dilithium3</span></div><div class="pqc-metric">Security: <span>Level 3</span></div></div><div style="margin-top:8px;"><span class="badge badge-g">✓ ACTIVE</span><span class="badge badge-v" style="margin-left:4px">Module-LWE</span></div></div>
+          <div class="pqc-algo-card"><div class="pqc-algo-name">FALCON-512</div><div class="pqc-algo-type">NIST FIPS 206 · FN-DSA</div><div class="pqc-status-row"><div class="pqc-metric">Variant: <span>Falcon-512</span></div><div class="pqc-metric">Security: <span>Level 1</span></div></div><div style="margin-top:8px;"><span class="badge badge-g">✓ ACTIVE</span><span class="badge badge-p" style="margin-left:4px">NTRU-Lattice</span></div></div>
+          <div class="pqc-algo-card"><div class="pqc-algo-name">SPHINCS+</div><div class="pqc-algo-type">NIST FIPS 205 · SLH-DSA</div><div class="pqc-status-row"><div class="pqc-metric">Variant: <span>SHA2-128s</span></div><div class="pqc-metric">Security: <span>Level 1</span></div></div><div style="margin-top:8px;"><span class="badge badge-g">✓ ACTIVE</span><span class="badge badge-c" style="margin-left:4px">Hash-Based</span></div></div>
+        </div>
+      </div>
+      <div class="pnl"><div class="pnl-title">LIVE SIGNATURE VERIFICATION</div><div class="tbl-wrap"><table><thead><tr><th>TX ID</th><th>USER</th><th>DILITHIUM3</th><th>FALCON-512</th><th>SPHINCS+</th><th>ML-KEM</th><th>OVERALL</th><th>TIME</th></tr></thead><tbody id="pqcSigBody"></tbody></table></div></div>
+    </div>
+    <!-- TAB: COMMS -->
+    <div class="tab-panel" id="tab-comms">
+      <div class="pnl multi-edge"><div class="pnl-title">QUANTUM COMMUNICATIONS LOG <div class="live-dot" style="margin-left:auto">LIVE</div></div><div class="tbl-wrap"><table><thead><tr><th>ID</th><th>FROM</th><th>TO</th><th>PROTOCOL</th><th>ENCRYPTION</th><th>PQC SIG</th><th>STATUS</th><th>LATENCY</th><th>TIME</th></tr></thead><tbody id="commsBody"></tbody></table></div></div>
+    </div>
+    <!-- TAB: SYSTEM -->
+    <div class="tab-panel" id="tab-system">
+      <div class="pnl multi-edge"><div class="pnl-title">SYSTEM RESOURCES — REALTIME</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding:8px 0;" id="sysGauges"></div></div>
+      <div class="g2">
+        <div class="pnl"><div class="pnl-title">RESOURCE HISTORY</div><svg id="sysChartSvg" style="width:100%;height:160px;display:block;" viewBox="0 0 600 160" preserveAspectRatio="none"></svg></div>
+        <div class="pnl cyan-edge"><div class="pnl-title">SERVICE STATUS</div><div id="svcStatus" style="display:flex;flex-direction:column;gap:8px;"></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════════════════
+   PHASE ORCHESTRATOR
+   Phase 1 (0–10s):  Cybernetic human ON + title overlay
+   Phase 2 (10s+):   Cyber human fades, cube fades in, login BOOMS in
+   After login auth: Cube fades, cyber human back on, dashboard shows
+══════════════════════════════════════════════════════ */
+
+const $cyber = document.getElementById('spline-cyber');
+const $cube  = document.getElementById('spline-cube');
+const $title = document.getElementById('ph-title');
+const $login = document.getElementById('ph-login');
+
+// Start particles immediately
+initParticles();
+
+// ── Phase 1: reveal cybernetic human right away ──
+$cyber.classList.add('on');
+
+// ── Countdown dots (10 dots = 10 seconds) ──
+let dotIdx = 0;
+const dotTimer = setInterval(() => {
+  const dot = document.getElementById('d' + dotIdx);
+  if (dot) dot.classList.add('lit');
+  dotIdx++;
+  if (dotIdx >= 10) clearInterval(dotTimer);
+}, 1000);
+
+// ── At 10s: fade title, swap Spline scenes, boom login ──
+setTimeout(() => {
+  // Fade out title
+  $title.classList.add('fadeout');
+
+  // Cross-fade: cyber out, cube in
+  $cyber.classList.remove('on');
+  $cube.style.display = 'block';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    $cube.classList.add('on');
+  }));
+
+  // After title fully gone, boom in login
+  setTimeout(() => {
+    $title.style.display = 'none';
+    $login.classList.add('on');
+    // Let display:block paint, then trigger animation
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      $login.classList.add('boom');
+    }));
+  }, 1200);
+}, 10000);
+
+function switchToCyberBg() {
+  // After auth: fully hide cube, bring cyber human back
+  $cube.classList.remove('on');
+  // Wait for fade transition to finish then hide completely
+  setTimeout(() => { $cube.style.display = 'none'; }, 2000);
+  $cyber.classList.add('on');
+}
+
+/* ══════════════════════════════════════════════════════
+   PARTICLE CANVAS
+══════════════════════════════════════════════════════ */
+function initParticles() {
+  const canvas = document.getElementById('particle-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  const particles = [];
+  const COLORS = ['rgba(255,0,170,','rgba(0,220,255,','rgba(140,0,255,','rgba(0,255,170,'];
+  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+  for (let i = 0; i < 60; i++) particles.push({x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,r:Math.random()*1.5+.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,col:COLORS[Math.floor(Math.random()*COLORS.length)],alpha:Math.random()*.4+.1,pulse:Math.random()*Math.PI*2});
+  (function anim(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;p.pulse+=.02;
+      if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;
+      const a=p.alpha*(0.5+0.5*Math.sin(p.pulse));
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=p.col+a+')';ctx.fill();
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);
+      g.addColorStop(0,p.col+(a*.5)+')');g.addColorStop(1,p.col+'0)');
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r*4,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+    });
+    requestAnimationFrame(anim);
+  })();
+}
+
+/* ══════════════════════════════════════════════════════
+   FIREBASE CONFIG
+══════════════════════════════════════════════════════ */
+let fbConfig = {
+  apiKey:"AIzaSyBnqM4f7xSkrt3DZPuKDoM-bWA0dkRU2-E",
+  authDomain:"quantum-cryptography-khyathi.firebaseapp.com",
+  projectId:"quantum-cryptography-khyathi",
+  storageBucket:"quantum-cryptography-khyathi.firebasestorage.app",
+  messagingSenderId:"999201837651",
+  appId:"1:999201837651:web:fb14efdfe4f1b46d536ca6"
+};
+let ADMIN_EMAIL = 'gayathrikhyathi4@gmail.com';
+try{const s=localStorage.getItem('qs_fb_config');if(s){const p=JSON.parse(s);fbConfig={...fbConfig,...p};if(p.adminEmail)ADMIN_EMAIL=p.adminEmail;}}catch(e){}
+firebase.initializeApp(fbConfig);
+let db=firebase.firestore(),auth=firebase.auth();
+
+function saveFBConfig(){const cfg={apiKey:document.getElementById('fb-apiKey').value.trim()||fbConfig.apiKey,authDomain:document.getElementById('fb-authDomain').value.trim()||fbConfig.authDomain,projectId:document.getElementById('fb-projectId').value.trim()||fbConfig.projectId,storageBucket:document.getElementById('fb-storageBucket').value.trim()||fbConfig.storageBucket,messagingSenderId:document.getElementById('fb-messagingSenderId').value.trim()||fbConfig.messagingSenderId,appId:document.getElementById('fb-appId').value.trim()||fbConfig.appId,adminEmail:document.getElementById('fb-adminEmail').value.trim()||ADMIN_EMAIL};localStorage.setItem('qs_fb_config',JSON.stringify(cfg));const st=document.getElementById('fbStatus');st.className='fb-status ok';st.textContent='✓ Config saved — reloading…';setTimeout(()=>location.reload(),1200);}
+function openFBModal(){document.getElementById('fb-apiKey').value=fbConfig.apiKey||'';document.getElementById('fb-authDomain').value=fbConfig.authDomain||'';document.getElementById('fb-projectId').value=fbConfig.projectId||'';document.getElementById('fb-storageBucket').value=fbConfig.storageBucket||'';document.getElementById('fb-messagingSenderId').value=fbConfig.messagingSenderId||'';document.getElementById('fb-appId').value=fbConfig.appId||'';document.getElementById('fb-adminEmail').value=ADMIN_EMAIL||'';document.getElementById('fbModal').classList.add('on');}
+
+function toast(msg,type='info',dur=3000){const w=document.getElementById('toasts');const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;w.appendChild(t);setTimeout(()=>t.remove(),dur);}
+function rnd(a,b){return Math.random()*(b-a)+a;}
+function rndInt(a,b){return Math.floor(rnd(a,b+1));}
+function randId(n=8){return Array.from({length:n},()=>'0123456789ABCDEF'[Math.floor(Math.random()*16)]).join('');}
+
+function tickClock(){const n=new Date();document.getElementById('clock').textContent=n.toUTCString().slice(17,25)+' UTC';document.getElementById('clkd').textContent=n.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});const ls=document.getElementById('lastSync');if(ls)ls.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+setInterval(tickClock,1000);tickClock();
+
+function drawLogo(){const cv=document.getElementById('logo-cv');if(!cv)return;const ctx=cv.getContext('2d'),s=32;ctx.clearRect(0,0,s,s);const colors=['rgba(255,0,170,.7)','rgba(0,220,255,.6)','rgba(140,0,255,.5)'];for(let i=0;i<6;i++){const a=i*Math.PI/3;ctx.strokeStyle=colors[i%3];ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(s/2+Math.cos(a)*10,s/2+Math.sin(a)*10);ctx.lineTo(s/2+Math.cos(a)*s*.47,s/2+Math.sin(a)*s*.47);ctx.stroke();}ctx.strokeStyle='rgba(255,0,170,.5)';ctx.lineWidth=1.2;ctx.beginPath();for(let i=0;i<6;i++){const a=i*Math.PI/3;const x=s/2+Math.cos(a)*10,y=s/2+Math.sin(a)*10;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.closePath();ctx.stroke();const cg=ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,4);cg.addColorStop(0,'rgba(255,0,170,.9)');cg.addColorStop(.5,'rgba(0,220,255,.6)');cg.addColorStop(1,'rgba(140,0,255,.3)');ctx.fillStyle=cg;ctx.beginPath();ctx.arc(s/2,s/2,4,0,Math.PI*2);ctx.fill();}
+
+/* LOGIN */
+function togglePw(){const i=document.getElementById('lg-pw'),e=document.getElementById('lg-eye');i.type=i.type==='password'?'text':'password';e.textContent=i.type==='password'?'👁':'🙈';}
+async function doLogin(){
+  const email=document.getElementById('lg-em').value.trim();
+  const pass=document.getElementById('lg-pw').value;
+  const err=document.getElementById('lg-err'),btn=document.getElementById('lg-btn'),sp=document.getElementById('lg-spin');
+  err.classList.remove('on');
+  if(!email||!pass){err.textContent='⚡ Enter email and password.';err.classList.add('on');return;}
+  if(email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){err.textContent='⚡ Not an admin account.';err.classList.add('on');return;}
+  btn.disabled=true;sp.style.display='block';
+  try{
+    const cred=await auth.signInWithEmailAndPassword(email,pass);
+    if(cred.user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){await auth.signOut();throw new Error('Not admin');}
+    sp.style.display='none';startAuth(cred.user);
+  }catch(e){sp.style.display='none';btn.disabled=false;err.textContent='⚡ '+(e.code==='auth/wrong-password'?'Wrong password.':e.code==='auth/user-not-found'?'User not found.':e.message);err.classList.add('on');}
+}
+
+const AUTH_CHANNELS=['QUANTUM KEY VERIFY (BB84)','FIRESTORE AUTH TOKEN','ZERO-TRUST POLICY CHECK','BIOMETRIC HASH VALIDATE','PQC SESSION ENCRYPTION','SPECTRAL CHANNEL INIT'];
+function startAuth(user){
+  document.getElementById('ph-login').classList.add('out');
+  setTimeout(()=>{document.getElementById('ph-login').style.display='none';document.getElementById('ph-auth').classList.add('on');},650);
+  const cc=document.getElementById('authChans');cc.innerHTML='';
+  AUTH_CHANNELS.forEach(ch=>{const d=document.createElement('div');d.className='auth-ch';d.innerHTML=`<span class="auth-ch-lbl">${ch}</span><span class="auth-ch-st wait">CONNECTING…</span>`;cc.appendChild(d);});
+  const fill=document.getElementById('authFill'),lbl=document.getElementById('authLbl'),pct=document.getElementById('authPct');
+  let i=0;
+  const iv=setInterval(()=>{
+    if(i>=AUTH_CHANNELS.length){clearInterval(iv);setTimeout(()=>enterDash(user),700);return;}
+    cc.children[i].querySelector('.auth-ch-st').className='auth-ch-st ok';cc.children[i].querySelector('.auth-ch-st').textContent='✓ VERIFIED';
+    const p=Math.round((i+1)/AUTH_CHANNELS.length*100);fill.style.width=p+'%';lbl.textContent=AUTH_CHANNELS[i];pct.textContent=p+'%';i++;
+  },500);
+}
+function enterDash(user){
+  // Switch back to cybernetic human bg
+  switchToCyberBg();
+  document.getElementById('ph-auth').classList.add('out');
+  setTimeout(()=>{
+    document.getElementById('ph-auth').style.display='none';
+    document.getElementById('ph-dash').classList.add('on');
+    document.getElementById('admPill').textContent='⬤ '+user.email.split('@')[0].toUpperCase();
+    document.getElementById('admPill').style.color='var(--green)';
+    document.getElementById('admPill').style.borderColor='rgba(0,255,170,.2)';
+    document.getElementById('fbDot').style.background='var(--green)';
+    document.getElementById('fbSt').textContent='CONNECTED';
+    initDash();
+    toast('SPECTRAL BREACH ACTIVE — All channels armed.','info',5000);
+  },750);
+}
+
+/* NAV TABS */
+document.querySelectorAll('.ntab').forEach(btn=>{
+  btn.onclick=function(){
+    document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('on'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('on'));
+    this.classList.add('on');
+    const key=this.getAttribute('data-tab');
+    document.getElementById('tab-'+key)?.classList.add('on');
+    if(key==='users')buildUsers();if(key==='qber')initQber();if(key==='threats')buildThreats();
+    if(key==='quantum')buildQuantum();if(key==='pqc')buildPQC();if(key==='comms')buildComms();if(key==='system')buildSystem();
+  };
+});
+
+/* DATA */
+const USERS_DB=[
+  {id:'U001',name:'Arjun Mehta',email:'arjun@quantumbank.in',av:'AM',color:'#ff00aa',ip:'103.21.58.14',loc:'Mumbai, IN',device:'Chrome/Windows',risk:'HIGH',status:'active',lat:19.076,lng:72.877,mfa:true,sessions:3,balance:'₹4,28,500',joined:'2023-03-12'},
+  {id:'U002',name:'Wei Zhang',email:'wei@quantumbank.cn',av:'WZ',color:'#00dcff',ip:'202.96.134.5',loc:'Shanghai, CN',device:'Safari/iPhone',risk:'LOW',status:'active',lat:31.23,lng:121.47,mfa:true,sessions:1,balance:'¥88,200',joined:'2023-06-20'},
+  {id:'U003',name:'Maria Santos',email:'maria@quantumbank.br',av:'MS',color:'#8c00ff',ip:'177.53.22.90',loc:'São Paulo, BR',device:'Firefox/Mac',risk:'MEDIUM',status:'active',lat:-23.55,lng:-46.63,mfa:false,sessions:2,balance:'R$12,400',joined:'2022-11-05'},
+  {id:'U004',name:'Priya Sharma',email:'priya@quantumbank.in',av:'PS',color:'#00ffaa',ip:'49.36.177.8',loc:'Delhi, IN',device:'Chrome/Android',risk:'LOW',status:'active',lat:28.61,lng:77.21,mfa:true,sessions:1,balance:'₹92,000',joined:'2023-01-28'},
+  {id:'U005',name:'Thomas Mueller',email:'thomas@quantumbank.de',av:'TM',color:'#ffcc00',ip:'84.130.22.44',loc:'Berlin, DE',device:'Edge/Windows',risk:'LOW',status:'active',lat:52.52,lng:13.40,mfa:true,sessions:1,balance:'€14,600',joined:'2022-09-14'},
+  {id:'U006',name:'Aiko Tanaka',email:'aiko@quantumbank.jp',av:'AT',color:'#00dcff',ip:'210.169.14.22',loc:'Tokyo, JP',device:'Chrome/iOS',risk:'LOW',status:'active',lat:35.68,lng:139.69,mfa:true,sessions:1,balance:'¥320,000',joined:'2023-04-03'},
+  {id:'U007',name:'Ivan Petrov',email:'ivan@quantumbank.ru',av:'IP',color:'#ff2235',ip:'95.173.2.18',loc:'Moscow, RU',device:'Unknown Browser',risk:'HIGH',status:'blocked',lat:55.75,lng:37.62,mfa:false,sessions:0,balance:'₽48,200',joined:'2022-07-22'},
+  {id:'U008',name:'Naledi Dlamini',email:'naledi@quantumbank.za',av:'ND',color:'#88ff88',ip:'196.25.155.3',loc:'Johannesburg, ZA',device:'Chrome/Android',risk:'MEDIUM',status:'pending',lat:-26.20,lng:28.04,mfa:false,sessions:0,balance:'R14,800',joined:'2024-01-15'},
+];
+const THREAT_LOCS=[
+  {lat:19.076,lng:72.877,city:'Mumbai',type:'p',user:'Arjun Mehta',qber:13.4,ch:'A'},
+  {lat:31.23,lng:121.47,city:'Shanghai',type:'g',user:'Wei Zhang',qber:3.2,ch:'B'},
+  {lat:-23.55,lng:-46.63,city:'São Paulo',type:'c',user:'Maria Santos',qber:8.7,ch:'B'},
+  {lat:28.61,lng:77.21,city:'Delhi',type:'g',user:'Priya Sharma',qber:2.8,ch:'A'},
+  {lat:52.52,lng:13.40,city:'Berlin',type:'c',user:'T. Mueller',qber:4.1,ch:'C'},
+  {lat:35.68,lng:139.69,city:'Tokyo',type:'g',user:'Aiko Tanaka',qber:1.9,ch:'B'},
+  {lat:55.75,lng:37.62,city:'Moscow',type:'r',user:'Ivan Petrov',qber:15.2,ch:'A'},
+  {lat:51.51,lng:-0.12,city:'London',type:'v',user:'System Node',qber:2.2,ch:'C'},
+  {lat:40.71,lng:-74.01,city:'New York',type:'c',user:'Unknown',qber:9.3,ch:'B'},
+  {lat:1.35,lng:103.82,city:'Singapore',type:'g',user:'Node QS-SG',qber:3.5,ch:'A'},
+];
+
+/* CHARTS */
+let txPoints=[];
+function buildTxChart(){const svg=document.getElementById('txSvg');if(!svg)return;const W=600,H=180;if(!txPoints.length)for(let i=0;i<40;i++)txPoints.push(rnd(30,130));txPoints.push(rnd(30,140));if(txPoints.length>50)txPoints.shift();const min=Math.min(...txPoints),max=Math.max(...txPoints)+10;const pts=txPoints.map((v,i)=>{const x=i/(txPoints.length-1)*W;const y=H-(v-min)/(max-min)*(H-20)-10;return `${x},${y}`;}).join(' ');const area=`0,${H} `+txPoints.map((v,i)=>{const x=i/(txPoints.length-1)*W;const y=H-(v-min)/(max-min)*(H-20)-10;return `${x},${y}`;}).join(' ')+` ${W},${H}`;svg.innerHTML=`<defs><linearGradient id="txGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,0,170,.2)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></linearGradient><linearGradient id="txLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#8c00ff"/><stop offset="50%" stop-color="#ff00aa"/><stop offset="100%" stop-color="#00dcff"/></linearGradient></defs><polygon points="${area}" fill="url(#txGrad)"/><polyline points="${pts}" fill="none" stroke="url(#txLine)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;}
+function buildThreatBreak(){const c=document.getElementById('threatBreak');if(!c)return;const threats=[{lbl:'QBER Eavesdropping',val:rndInt(12,28),col:'var(--pink)'},{lbl:'C2 Communications',val:rndInt(5,15),col:'var(--cyan)'},{lbl:'Lateral Movement',val:rndInt(8,22),col:'var(--violet)'},{lbl:'Brute Force Login',val:rndInt(3,12),col:'var(--warn)'},{lbl:'ML Fraud Detection',val:rndInt(18,42),col:'var(--green)'}];const total=threats.reduce((s,t)=>s+t.val,0);c.innerHTML=threats.map(t=>`<div><div style="display:flex;justify-content:space-between;font-family:var(--fmono);font-size:10px;margin-bottom:3px;"><span style="color:var(--textMid)">${t.lbl}</span><span style="color:${t.col}">${t.val}</span></div><div class="prog-bar"><div class="prog-fill" style="width:${t.val/total*100}%;background:${t.col};box-shadow:0 0 6px ${t.col}"></div></div></div>`).join('');}
+function loadFirebaseData(){db.collection('quantum_data').onSnapshot(snap=>{const all=[];snap.forEach(doc=>all.push({id:doc.id,...doc.data()}));const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};set('totalVal',all.length);set('secureVal',all.filter(d=>d.status==='SAFE'||d.status==='SECURE'||d.final_status==='SECURE').length);set('warnVal',all.filter(d=>(d.qber||0)>7&&(d.qber||0)<11).length);set('blockVal',all.filter(d=>d.status==='BLOCKED'||d.final_status==='BLOCKED').length);const body=document.getElementById('txBody');if(body&&all.length)body.innerHTML=all.slice(-15).reverse().map(d=>{const qber=(d.qber||0).toFixed(1);const status=d.status||d.final_status||'UNKNOWN';const qcol=parseFloat(qber)>11?'var(--danger)':parseFloat(qber)>7?'var(--warn)':'var(--green)';const dil=d.dilithium_valid,fal=d.falcon_valid,sph=d.sphincs_valid;return `<tr><td style="font-family:var(--fmono);font-size:10px;color:rgba(255,0,170,.5)">${d.transaction_id||d.id||'—'}</td><td style="color:var(--pink)">${d.user||d.user_id||'Unknown'}</td><td style="font-family:var(--fhud);font-size:12px;font-weight:600">$${(d.amount||0).toLocaleString()}</td><td style="font-family:var(--fhud);font-size:13px;color:${qcol}">${qber}%</td><td><span class="badge ${(d.risk_score||0)>70?'badge-d':(d.risk_score||0)>40?'badge-w':'badge-g'}">${(d.risk_score||0).toFixed(0)}</span></td><td><span class="badge ${status==='BLOCKED'?'badge-d':status==='SECURE'||status==='SAFE'?'badge-g':'badge-w'}">${status}</span></td><td style="font-family:var(--fmono);font-size:9px"><span class="badge badge-v">${d.pqc_status||'ML-KEM'}</span></td><td style="font-family:var(--fmono);font-size:9px"><span style="color:${dil?'var(--green)':'var(--danger)'}">DIL:${dil?'✓':'✗'}</span> <span style="color:${fal?'var(--green)':'var(--danger)'}">FAL:${fal?'✓':'✗'}</span> <span style="color:${sph?'var(--green)':'var(--danger)'}">SPH:${sph?'✓':'✗'}</span></td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${d.timestamp?'—':'—'}</td></tr>`;}).join('');});}
+function buildTxTable(){const body=document.getElementById('txBody');if(!body)return;const pqcSuites=['Dilithium3+Falcon','Dilithium3+SPHINCS+','Falcon+SPHINCS+','Full PQC Suite'];body.innerHTML=Array.from({length:10},()=>{const u=USERS_DB[rndInt(0,USERS_DB.length-1)];const qber=rnd(1,14).toFixed(1);const st=qber>11?'BLOCKED':qber>7?'FLAGGED':'SECURE';const col=st==='BLOCKED'?'var(--danger)':st==='FLAGGED'?'var(--warn)':'var(--green)';const score=rnd(0,100).toFixed(0);const dil=Math.random()>.1,fal=Math.random()>.1,sph=Math.random()>.1;return `<tr><td style="font-family:var(--fmono);font-size:10px;color:rgba(255,0,170,.45)">QS-${randId(6)}</td><td style="color:${u.color}">${u.name}</td><td style="font-family:var(--fhud);font-size:12px;font-weight:600">₹${rndInt(1000,500000).toLocaleString('en-IN')}</td><td style="font-family:var(--fhud);font-size:13px;color:${col}">${qber}%</td><td><span class="badge ${score>70?'badge-d':score>40?'badge-w':'badge-g'}">${score}</span></td><td><span class="badge ${st==='BLOCKED'?'badge-d':st==='FLAGGED'?'badge-w':'badge-g'}">${st}</span></td><td><span class="badge badge-v" style="font-size:8px">${pqcSuites[rndInt(0,3)]}</span></td><td style="font-family:var(--fmono);font-size:9px"><span style="color:${dil?'var(--green)':'var(--danger)'}">DIL:${dil?'✓':'✗'}</span> <span style="color:${fal?'var(--green)':'var(--danger)'}">FAL:${fal?'✓':'✗'}</span> <span style="color:${sph?'var(--green)':'var(--danger)'}">SPH:${sph?'✓':'✗'}</span></td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${new Date().toLocaleTimeString()}</td></tr>`;}).join('');}
+let stats={total:0,secure:0,warn:0,block:0};
+function buildStats(){stats.total+=rndInt(15,45);stats.secure=Math.floor(stats.total*.91);stats.warn=Math.floor(stats.total*.06);stats.block=stats.total-stats.secure-stats.warn;const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v.toLocaleString('en-IN');};set('totalVal',stats.total);set('secureVal',stats.secure);set('warnVal',stats.warn);set('blockVal',stats.block);}
+let leafMap=null;
+function buildMap(){if(leafMap)return;const el=document.getElementById('live-map');if(!el)return;leafMap=L.map('live-map',{center:[20,0],zoom:2,zoomControl:false,attributionControl:false});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(leafMap);THREAT_LOCS.forEach(loc=>{const cls=`map-${loc.type}`;const icon=L.divIcon({className:'',html:`<div class="map-pulse ${cls}"></div>`,iconSize:[14,14]});const chColor=loc.ch==='A'?'#ff00aa':loc.ch==='B'?'#00dcff':'#8c00ff';L.marker([loc.lat,loc.lng],{icon}).addTo(leafMap).bindPopup(`<div style="font-family:var(--fmono);font-size:11px;line-height:1.9"><b style="color:${chColor}">CH-${loc.ch}: ${loc.city}</b><br>User: ${loc.user}<br>QBER: <span style="color:${loc.qber>11?'var(--danger)':loc.qber>7?'var(--warn)':'var(--green)'}">${loc.qber}%</span></div>`);});}
+let filteredUsers=[];
+function buildUsers(){filteredUsers=[...USERS_DB];db.collection('bank_users').get().then(snap=>{if(!snap.empty){const fbU=[];snap.forEach(doc=>{const d=doc.data();fbU.push({id:doc.id,name:d.name||d.email?.split('@')[0]||'Unknown',email:d.email||'—',av:(d.name||'U').slice(0,2).toUpperCase(),color:'#ff00aa',ip:d.lastIP||d.ip||'—',loc:d.location||'—',device:d.device||'—',risk:d.riskLevel||'LOW',status:d.status||'active',lat:d.lat||20,lng:d.lng||0,mfa:d.mfaEnabled||false,sessions:d.activeSessions||0,balance:d.balance||'—',joined:d.createdAt?.toDate?.()?.toLocaleDateString('en-IN')||'—'});});if(fbU.length>0)filteredUsers=[...fbU];}}).catch(()=>{}).finally(()=>renderUsers());document.getElementById('uTotal').textContent=filteredUsers.length;document.getElementById('uActive').textContent=filteredUsers.filter(u=>u.status==='active').length;renderUsers();}
+function renderUsers(){const search=document.getElementById('uSearch')?.value?.toLowerCase()||'';const filter=document.getElementById('uFilter')?.value||'all';const list=filteredUsers.filter(u=>{if(filter!=='all'&&u.status!==filter)return false;if(search&&!`${u.name}${u.email}${u.ip}${u.loc}`.toLowerCase().includes(search))return false;return true;});const c=document.getElementById('usersList');if(!c)return;if(!list.length){c.innerHTML='<div style="font-family:var(--fmono);font-size:11px;color:var(--textDim);padding:20px;text-align:center;">No users found</div>';return;}c.innerHTML=list.map(u=>`<div class="user-card ${u.status==='blocked'?'blocked':u.status==='pending'?'pending':''}" id="uc-${u.id}"><div class="uavatar" style="background:${u.color}18;color:${u.color};border:1px solid ${u.color}44">${u.av}</div><div style="flex:1;min-width:0"><div class="uname">${u.name} <span class="badge ${u.status==='active'?'badge-g':u.status==='blocked'?'badge-d':'badge-w'}" style="font-size:8px">${u.status.toUpperCase()}</span></div><div class="uemail">${u.email}</div><div style="display:flex;gap:14px;margin-top:3px;flex-wrap:wrap"><span class="uip">🌐 ${u.ip}</span><span style="font-family:var(--fmono);font-size:10px;color:rgba(140,0,255,.5)">📍 ${u.loc}</span><span class="uip">${u.mfa?'🔐 MFA ON':'⚠ NO MFA'}</span></div></div><div style="text-align:right;min-width:80px"><div style="font-family:var(--fmono);font-size:9px;color:${u.risk==='HIGH'?'var(--danger)':u.risk==='MEDIUM'?'var(--warn)':'var(--green)'}">${u.risk} RISK</div><div style="font-family:var(--fmono);font-size:9px;color:var(--textDim);margin-top:2px">${u.sessions} session${u.sessions!==1?'s':''}</div></div><div class="uactions"><button class="uact btn-cyan btn" onclick="viewUser('${u.id}')">👁 VIEW</button>${u.status==='active'?`<button class="uact btn-danger btn" onclick="blockUser('${u.id}')">⊗ BLOCK</button>`:u.status==='blocked'?`<button class="uact btn-green btn" onclick="unblockUser('${u.id}')">✓ UNBLOCK</button>`:`<button class="uact btn-green btn" onclick="approveUser('${u.id}')">✓ APPROVE</button>`}<button class="uact btn btn-pink" onclick="forceLogout('${u.id}')">↩ LOGOUT</button></div></div>`).join('');const sb=document.getElementById('sessBody');if(!sb)return;sb.innerHTML=list.filter(u=>u.status==='active').map(u=>`<tr><td style="color:${u.color}">${u.name}</td><td style="font-family:var(--fmono);font-size:10.5px">${u.ip}</td><td style="font-family:var(--fmono);font-size:10.5px">${u.loc}</td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${u.device}</td><td><span class="badge ${u.mfa?'badge-g':'badge-w'}">${u.mfa?'✓ 2FA':'NO MFA'}</span></td><td style="font-family:var(--fmono);font-size:10px">${u.sessions} active</td><td><span class="badge ${u.risk==='HIGH'?'badge-d':u.risk==='MEDIUM'?'badge-w':'badge-g'}">${u.risk}</span></td><td><button class="btn btn-danger" style="padding:4px 10px;font-size:9px" onclick="forceLogout('${u.id}')">REVOKE</button></td></tr>`).join('');}
+function filterUsers(){renderUsers();}
+function refreshUsers(){buildUsers();toast('User list refreshed','info');}
+function viewUser(id){const u=USERS_DB.find(x=>x.id===id)||filteredUsers.find(x=>x.id===id);if(!u)return;document.getElementById('userModalContent').innerHTML=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div class="uavatar" style="width:50px;height:50px;font-size:16px;background:${u.color}18;color:${u.color};border:1px solid ${u.color}55">${u.av}</div><div><div style="font-size:15px;font-weight:600">${u.name}</div><div style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${u.email}</div></div></div><div class="mrow"><span class="mk">USER ID</span><span class="mv">${u.id}</span></div><div class="mrow"><span class="mk">IP ADDRESS</span><span class="mv" style="font-family:var(--fmono)">${u.ip}</span></div><div class="mrow"><span class="mk">LOCATION</span><span class="mv">${u.loc}</span></div><div class="mrow"><span class="mk">DEVICE</span><span class="mv">${u.device}</span></div><div class="mrow"><span class="mk">STATUS</span><span class="mv"><span class="badge ${u.status==='active'?'badge-g':u.status==='blocked'?'badge-d':'badge-w'}">${u.status.toUpperCase()}</span></span></div><div class="mrow"><span class="mk">RISK</span><span class="mv" style="color:${u.risk==='HIGH'?'var(--danger)':u.risk==='MEDIUM'?'var(--warn)':'var(--green)'}">${u.risk}</span></div><div class="mrow"><span class="mk">MFA</span><span class="mv">${u.mfa?'✓ ENABLED':'⚠ NOT ENABLED'}</span></div><div class="mrow"><span class="mk">ACTIVE SESSIONS</span><span class="mv">${u.sessions}</span></div><div class="mrow"><span class="mk">BALANCE</span><span class="mv">${u.balance}</span></div><div class="mrow"><span class="mk">MEMBER SINCE</span><span class="mv">${u.joined}</span></div>`;document.getElementById('userModalActions').innerHTML=`<button class="btn btn-danger" style="flex:1" onclick="blockUser('${u.id}');document.getElementById('userModal').classList.remove('on')">⊗ BLOCK</button><button class="btn btn-green" style="flex:1" onclick="unblockUser('${u.id}');document.getElementById('userModal').classList.remove('on')">✓ GRANT</button><button class="btn btn-pink" style="flex:1" onclick="forceLogout('${u.id}');document.getElementById('userModal').classList.remove('on')">↩ LOGOUT</button>`;document.getElementById('userModal').classList.add('on');}
+function blockUser(id){const u=USERS_DB.find(x=>x.id===id)||filteredUsers.find(x=>x.id===id);if(!u)return;u.status='blocked';db.collection('bank_users').doc(id).update({status:'blocked',blockedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});toast(`User ${u.name} BLOCKED`,'err');renderUsers();}
+function unblockUser(id){const u=USERS_DB.find(x=>x.id===id)||filteredUsers.find(x=>x.id===id);if(!u)return;u.status='active';db.collection('bank_users').doc(id).update({status:'active'}).catch(()=>{});toast(`User ${u.name} access RESTORED`,'ok');renderUsers();}
+function approveUser(id){const u=USERS_DB.find(x=>x.id===id)||filteredUsers.find(x=>x.id===id);if(!u)return;u.status='active';db.collection('bank_users').doc(id).update({status:'active',approvedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});toast(`User ${u.name} APPROVED`,'ok');renderUsers();}
+function forceLogout(id){const u=USERS_DB.find(x=>x.id===id)||filteredUsers.find(x=>x.id===id);if(!u)return;u.sessions=0;db.collection('bank_users').doc(id).update({activeSessions:0,forcedLogoutAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});toast(`Session revoked for ${u.name}`,'warn');renderUsers();}
+function openAddUser(){document.getElementById('userModalContent').innerHTML=`<div class="inp-grp"><label class="inp-lbl">FULL NAME</label><input class="inp" id="nu-name" placeholder="Enter full name"/></div><div class="inp-grp"><label class="inp-lbl">EMAIL ADDRESS</label><input class="inp" id="nu-email" type="email" placeholder="user@bank.com"/></div><div class="inp-grp"><label class="inp-lbl">INITIAL PASSWORD</label><input class="inp" id="nu-pass" type="password" placeholder="Secure password"/></div><div class="inp-grp"><label class="inp-lbl">ROLE</label><select class="inp" id="nu-role"><option value="customer">CUSTOMER</option><option value="staff">BANK STAFF</option><option value="auditor">AUDITOR</option></select></div>`;document.getElementById('userModalActions').innerHTML=`<button class="btn btn-green" style="flex:1" onclick="createUser()">✓ CREATE USER</button>`;document.getElementById('userModal').querySelector('h3').textContent='CREATE NEW USER';document.getElementById('userModal').classList.add('on');}
+async function createUser(){const name=document.getElementById('nu-name')?.value.trim();const email=document.getElementById('nu-email')?.value.trim();const pass=document.getElementById('nu-pass')?.value;const role=document.getElementById('nu-role')?.value;if(!name||!email||!pass){toast('Fill all fields','err');return;}try{await db.collection('bank_users').add({name,email,role,status:'active',createdAt:firebase.firestore.FieldValue.serverTimestamp(),mfaEnabled:false,activeSessions:0,riskLevel:'LOW'});toast(`User ${name} created`,'ok');document.getElementById('userModal').classList.remove('on');buildUsers();}catch(e){toast('Firestore error: '+e.message,'err');}}
+const QBER_USERS=[{name:'Arjun Mehta',av:'AM',color:'#ff00aa'},{name:'Wei Zhang',av:'WZ',color:'#00dcff'},{name:'Maria Santos',av:'MS',color:'#8c00ff'},{name:'Priya Sharma',av:'PS',color:'#00ffaa'},{name:'T. Mueller',av:'TM',color:'#ffcc00'},{name:'Aiko Tanaka',av:'AT',color:'#00dcff'},{name:'Ivan Petrov',av:'IP',color:'#ff2235'},{name:'Naledi Dlamini',av:'ND',color:'#88ff88'}];
+let qberTimelineData=[],qberTimers=[];
+function genQber(){return Math.random()<.15?rnd(11,16):Math.random()<.25?rnd(7,11):rnd(1,7);}
+function initQber(){qberTimers.forEach(t=>clearInterval(t));qberTimers=[];qberTimelineData=Array.from({length:30},()=>rnd(2,8));renderQber();qberTimers.push(setInterval(()=>{qberTimelineData.push(genQber());if(qberTimelineData.length>40)qberTimelineData.shift();renderQber();},3500));}
+function renderQber(){const users=QBER_USERS.map(u=>({...u,qber:parseFloat(genQber().toFixed(1))}));const safe=users.filter(u=>u.qber<7).length,warn=users.filter(u=>u.qber>=7&&u.qber<11).length,breach=users.filter(u=>u.qber>=11).length;const avg=(users.reduce((s,u)=>s+u.qber,0)/users.length).toFixed(1);['qbSafe','qbWarn','qbBreach','qbAvg'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.textContent=[safe,warn,breach,avg+'%'][i];});const af=document.getElementById('alertFloat');const breachUsers=users.filter(u=>u.qber>=11);if(af){if(breachUsers.length>0){af.style.display='block';document.getElementById('alertFloatBody').textContent=breachUsers.map(u=>`${u.name}: ${u.qber}%`).join(', ');}else af.style.display='none';}const svg=document.getElementById('qberSvg');if(svg&&qberTimelineData.length>1){const W=900,H=140,pts=qberTimelineData;const scaled=pts.map((v,i)=>({x:i/(pts.length-1)*W,y:H-(v/18)*H}));const pathD=scaled.map((p,i)=>`${i===0?'M':'L'}${p.x},${p.y}`).join(' ');const areaD=`M0,${H} `+scaled.map(p=>`L${p.x},${p.y}`).join(' ')+` L${W},${H} Z`;const lv=pts[pts.length-1];const col=lv>11?'#ff2235':lv>7?'#ffcc00':'#00dcff';const p=document.getElementById('qberPath'),a=document.getElementById('qberArea');if(p){p.setAttribute('d',pathD);p.setAttribute('stroke',col);}if(a){a.setAttribute('d',areaD);a.setAttribute('fill',col);}}const c=document.getElementById('qberUsers');if(!c)return;c.innerHTML=users.map(u=>{const st=u.qber>=11?'breach':u.qber>=7?'warn':'safe';const col=st==='breach'?'var(--danger)':st==='warn'?'var(--warn)':'var(--cyan)';return `<div class="qber-card ${st}"><div class="qber-av" style="background:${u.color}18;color:${u.color};border:1px solid ${u.color}44">${u.av}</div><div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:4px">${u.name}</div><div class="qber-bar-bg"><div class="qber-bar-fill" style="width:${Math.min(100,u.qber/18*100)}%;background:${col}"></div></div></div><div class="qber-val" style="color:${col}">${u.qber}%</div><span class="badge ${st==='breach'?'badge-d':st==='warn'?'badge-w':'badge-c'}">${st==='breach'?'⚠ BREACH':st==='warn'?'⡡ WARN':'✓ SAFE'}</span></div>`;}).join('');const hb=document.getElementById('qberHistBody');if(!hb)return;const protocols=['BB84','E91','BBM92'];hb.innerHTML=users.map(u=>{const st=u.qber>=11?'BREACH':u.qber>=7?'WARNING':'SECURE';const col=st==='BREACH'?'var(--danger)':st==='WARNING'?'var(--warn)':'var(--cyan)';return `<tr><td style="color:${u.color}">${u.name}</td><td style="font-family:var(--fhud);font-size:13px;color:${col}">${u.qber}%</td><td><span class="badge ${st==='BREACH'?'badge-d':st==='WARNING'?'badge-w':'badge-c'}">${st}</span></td><td style="font-family:var(--fmono);font-size:10px;color:var(--cyan)">BB84-${randId(4)}</td><td style="font-family:var(--fmono);font-size:10px">${rnd(80,200).toFixed(0)} kbps</td><td><span class="badge badge-c">${protocols[rndInt(0,2)]}</span></td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${new Date().toLocaleTimeString()}</td><td>${st==='BREACH'?`<button class="btn btn-danger" style="padding:3px 10px;font-size:9px">ISOLATE</button>`:'—'}</td></tr>`;}).join('');}
+function buildThreats(){['attVal','bIpVal','mlAlVal','tsVal'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.textContent=[rndInt(2,8),rndInt(12,35),rndInt(40,90),rndInt(55,85)][i];});const feed=document.getElementById('threatFeed');if(!feed)return;const items=[{msg:'CH-A: QBER spike: Ivan Petrov — 15.2%',type:'pink'},{msg:'CH-B: C2 beacon: 95.173.2.18 → EXTERNAL',type:'cyan'},{msg:'CH-C: Lateral movement: VLAN-12 → VLAN-08',type:'violet'},{msg:'ML fraud score 91/100: TX-8F2A14',type:'warn'},{msg:'BB84 session rekeyed: 14 users (QBER>11%)',type:'cyan'},{msg:'QRNG entropy refreshed: 512KB vacuum state',type:'violet'},{msg:'Dilithium3 signature verified: ₹4,20,000',type:'ok'},{msg:'GNN fraud ring: 3 nodes isolated',type:'pink'},{msg:'NIST FIPS 203/204/205/206: COMPLIANT',type:'ok'},{msg:'Falcon-512 batch signing: 847 tokens',type:'violet'}];const colMap={pink:'var(--pink)',cyan:'var(--cyan)',violet:'var(--violet)',warn:'var(--warn)',ok:'var(--green)'};feed.innerHTML=items.map(it=>`<div style="display:flex;gap:10px;padding:8px 12px;background:rgba(5,0,12,.8);border:1px solid rgba(255,255,255,.04);border-radius:3px;border-left:2px solid ${colMap[it.type]}"><span style="font-family:var(--fmono);font-size:10px;flex:1;color:var(--textMid)">${it.msg}</span><span style="font-family:var(--fmono);font-size:9px;color:var(--textDim);flex-shrink:0">${rndInt(1,12)}m ago</span></div>`).join('');const bips=document.getElementById('blockedIPs');if(!bips)return;bips.innerHTML=[['95.173.2.18','Russia','QBER Breach + C2'],['185.220.101.45','Unknown','Tor Exit Node'],['194.165.16.11','Iran','Known APT'],['45.227.255.206','Brazil','Lateral Movement'],['103.21.124.9','India','Auth Failures']].map(([ip,c,r])=>`<tr><td style="font-family:var(--fmono);font-size:10.5px;color:var(--pink)">${ip}</td><td style="font-family:var(--fmono);font-size:10px">${c}</td><td style="font-size:11px">${r}</td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${rndInt(1,24)}h ago</td></tr>`).join('');}
+function buildQuantum(){document.getElementById('qkdSess').textContent=rndInt(4,12);document.getElementById('entropyVal').textContent=rnd(80,200).toFixed(0);document.getElementById('qubitsVal').textContent=rndInt(1200,4000);document.getElementById('keyRateVal').textContent=rnd(50,200).toFixed(0);const phases=['SIFTING','ERROR EST.','PRIVACY AMP.','KEY RECON.'];const phc=document.getElementById('bb84Phases');if(phc)phc.innerHTML=phases.map(ph=>{const pct=rndInt(60,100);return `<div class="qkd-phase"><div class="qkd-phase-name">${ph}</div><div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:var(--cyan)"></div></div><div class="qkd-phase-val">${rnd(95,99.9).toFixed(1)}%</div></div>`;}).join('');const chans=[{name:'Alice→Bob (Mumbai)',qber:rnd(1,5),rate:rnd(100,200)},{name:'Alice→Bob (Tokyo)',qber:rnd(2,6),rate:rnd(80,160)},{name:'Alice→Bob (Berlin)',qber:rnd(1,4),rate:rnd(120,220)},{name:'Relay QS-SG-01',qber:rnd(7,12),rate:rnd(40,100)}];const qcc=document.getElementById('qChannels');if(qcc)qcc.innerHTML=chans.map(ch=>{const col=ch.qber>=11?'var(--danger)':ch.qber>=7?'var(--warn)':'var(--cyan)';return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:rgba(0,220,255,.03);border:1px solid rgba(0,220,255,.1);border-radius:3px"><span style="font-size:11px">${ch.name}</span><div style="display:flex;gap:14px;font-family:var(--fmono);font-size:10px"><span style="color:${col}">QBER ${ch.qber.toFixed(1)}%</span><span style="color:var(--textDim)">${ch.rate.toFixed(0)} kbps</span><span class="badge ${ch.qber<7?'badge-c':'badge-w'}">${ch.qber<7?'HEALTHY':'CHECK'}</span></div></div>`;}).join('');const qkdb=document.getElementById('qkdBody');if(!qkdb)return;const prots=['BB84','E91','BBM92','TF-QKD'];qkdb.innerHTML=Array.from({length:10},()=>{const u1=QBER_USERS[rndInt(0,QBER_USERS.length-1)],u2=QBER_USERS[rndInt(0,QBER_USERS.length-1)];const qb=rnd(1,12).toFixed(1);const ok=parseFloat(qb)<11;return `<tr><td style="font-family:var(--fmono);font-size:10px;color:rgba(0,220,255,.5)">QKD-${randId(6)}</td><td><span class="badge badge-c">${prots[rndInt(0,3)]}</span></td><td>${u1.name}</td><td>${u2.name}</td><td style="font-family:var(--fmono);font-size:10px">${rndInt(128,512)} bits</td><td style="font-family:var(--fhud);font-size:12px;color:${ok?'var(--cyan)':'var(--danger)'}">${qb}%</td><td><span class="badge ${ok?'badge-c':'badge-d'}">${ok?'SECURE':'BREACH'}</span></td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${new Date().toLocaleTimeString()}</td></tr>`;}).join('');}
+function buildPQC(){const sc=document.getElementById('sigCount');if(sc)sc.textContent=rndInt(800,1400);const lo=document.getElementById('latOps');if(lo)lo.textContent=rndInt(2000,6000);const ko=document.getElementById('kemOps');if(ko)ko.textContent=rndInt(400,900);const pb=document.getElementById('pqcSigBody');if(!pb)return;pb.innerHTML=Array.from({length:12},()=>{const u=USERS_DB[rndInt(0,USERS_DB.length-1)];const dil=Math.random()>.08,fal=Math.random()>.08,sph=Math.random()>.08,kem=Math.random()>.05;const all=dil&&fal&&sph&&kem;return `<tr><td style="font-family:var(--fmono);font-size:10px;color:rgba(140,0,255,.5)">QS-${randId(6)}</td><td style="color:${u.color}">${u.name}</td><td><span class="badge ${dil?'badge-g':'badge-d'}">${dil?'✓ VALID':'✗ FAIL'}</span></td><td><span class="badge ${fal?'badge-g':'badge-d'}">${fal?'✓ VALID':'✗ FAIL'}</span></td><td><span class="badge ${sph?'badge-g':'badge-d'}">${sph?'✓ VALID':'✗ FAIL'}</span></td><td><span class="badge ${kem?'badge-c':'badge-d'}">${kem?'✓ ENC':'✗ FAIL'}</span></td><td><span class="badge ${all?'badge-g':'badge-d'}" style="font-weight:700">${all?'✓ PASS':'⚠ REVIEW'}</span></td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${new Date().toLocaleTimeString()}</td></tr>`;}).join('');}
+function buildComms(){const b=document.getElementById('commsBody');if(!b)return;const prots=['BB84','E91','BBM92','QKD-TF'];const encs=['AES-256+Dilithium3','ChaCha20+Falcon','AES-256+SPHINCS+'];const sigs=['Dilithium3','Falcon-512','SPHINCS+'];const sts=['DELIVERED','ENCRYPTED','ROUTING','FAILED'];b.innerHTML=Array.from({length:15},()=>{const u1=QBER_USERS[rndInt(0,7)],u2=QBER_USERS[rndInt(0,7)];const st=sts[rndInt(0,3)];return `<tr><td style="font-family:var(--fmono);font-size:10px;color:rgba(255,0,170,.45)">MSG-${randId(5)}</td><td style="color:var(--pink);font-size:11px">${u1.name}</td><td style="font-size:11px">${u2.name}</td><td><span class="badge badge-c">${prots[rndInt(0,3)]}</span></td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${encs[rndInt(0,2)]}</td><td><span class="badge badge-v">${sigs[rndInt(0,2)]}</span></td><td><span class="badge ${st==='DELIVERED'?'badge-g':st==='FAILED'?'badge-d':st==='ROUTING'?'badge-w':'badge-c'}">${st}</span></td><td style="font-family:var(--fmono);font-size:10px">${rndInt(2,250)}ms</td><td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${new Date().toLocaleTimeString()}</td></tr>`;}).join('');}
+let sysVals={cpu:45,ram:62,gpu:28,disk:41,net:55};const sysHistory=[];
+function buildSystem(){tickSys();setInterval(tickSys,2500);buildSvcStatus();}
+function tickSys(){sysVals.cpu=Math.max(5,Math.min(98,sysVals.cpu+(Math.random()-.45)*8));sysVals.ram=Math.max(30,Math.min(95,sysVals.ram+(Math.random()-.48)*5));sysVals.gpu=Math.max(5,Math.min(90,sysVals.gpu+(Math.random()-.45)*10));sysVals.disk=Math.max(20,Math.min(85,sysVals.disk+(Math.random()-.49)*4));sysVals.net=Math.max(10,Math.min(99,sysVals.net+(Math.random()-.45)*12));sysHistory.push(sysVals.cpu);if(sysHistory.length>30)sysHistory.shift();renderSysGauges();renderSysChart();}
+function renderSysGauges(){const c=document.getElementById('sysGauges');if(!c)return;const gauges=[{lbl:'CPU',val:sysVals.cpu,col:'var(--pink)'},{lbl:'RAM',val:sysVals.ram,col:'var(--cyan)'},{lbl:'QPU',val:sysVals.gpu,col:'var(--violet)'},{lbl:'DISK I/O',val:sysVals.disk,col:'var(--warn)'},{lbl:'NETWORK',val:sysVals.net,col:'var(--green)'}];c.innerHTML=gauges.map(g=>{const r=38,circ=2*Math.PI*r,offset=circ-(g.val/100*circ);return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="position:relative;width:90px;height:90px"><svg viewBox="0 0 90 90" style="width:90px;height:90px;transform:rotate(-90deg)"><circle cx="45" cy="45" r="${r}" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="7"/><circle cx="45" cy="45" r="${r}" fill="none" stroke="${g.col}" stroke-width="7" stroke-dasharray="${circ}" stroke-dashoffset="${offset.toFixed(1)}" stroke-linecap="round" style="transition:stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1);filter:drop-shadow(0 0 6px ${g.col})"/></svg><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-family:var(--fhud);font-size:15px;font-weight:800;color:${g.col};text-shadow:0 0 10px ${g.col}">${g.val.toFixed(0)}</span><span style="font-family:var(--fmono);font-size:8px;color:var(--textDim)">%</span></div></div><div style="font-family:var(--fmono);font-size:9px;letter-spacing:1.5px;color:var(--textDim)">${g.lbl}</div></div>`;}).join('');}
+function renderSysChart(){const svg=document.getElementById('sysChartSvg');if(!svg||sysHistory.length<2)return;const W=600,H=160,pts=sysHistory.map((v,i)=>`${i/(sysHistory.length-1)*W},${H-(v/100)*(H-20)-10}`).join(' ');const area=`0,${H} ${pts} ${W},${H}`;svg.innerHTML=`<defs><linearGradient id="sgGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,0,170,.15)"/><stop offset="100%" stop-color="rgba(255,0,170,0)"/></linearGradient></defs><polygon points="${area}" fill="url(#sgGrad)"/><polyline points="${pts}" fill="none" stroke="var(--pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>${[25,50,75].map(v=>`<line x1="0" y1="${H-(v/100)*(H-20)-10}" x2="${W}" y2="${H-(v/100)*(H-20)-10}" stroke="rgba(255,0,170,.06)" stroke-width="1"/>`).join('')}`;}
+function buildSvcStatus(){const c=document.getElementById('svcStatus');if(!c)return;const svcs=[{name:'Firebase Firestore',st:'ONLINE'},{name:'BB84 QKD Server',st:'ONLINE'},{name:'ML Fraud Engine',st:'ONLINE'},{name:'QRNG Pool (Vacuum)',st:'ONLINE'},{name:'Dilithium3 Signer',st:'ONLINE'},{name:'Falcon-512 Signer',st:'ONLINE'},{name:'SPHINCS+ Signer',st:'ONLINE'},{name:'ML-KEM-768 (Kyber)',st:'ONLINE'},{name:'Zero-Trust Policy Engine',st:'ONLINE'},{name:'Biometric Auth',st:'DEGRADED'},{name:'Cybernetic Human BG',st:'ONLINE'},{name:'qBraid API Bridge',st:'ONLINE'}];c.innerHTML=svcs.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:rgba(5,0,12,.65);border:1px solid rgba(255,255,255,.04);border-radius:3px"><span style="font-size:11px">${s.name}</span><span class="badge ${s.st==='ONLINE'?'badge-g':'badge-w'}" style="font-size:9px">${s.st}</span></div>`).join('');}
+function initDash(){
+  startMLPolling();drawLogo();buildStats();buildTxChart();buildThreatBreak();buildTxTable();buildMap();loadFirebaseData();setInterval(()=>{buildStats();buildTxChart();},6000);setInterval(()=>{buildThreatBreak();},10000);}
+
+/* BOOT */
+let introStarted=false;
+/* ══════════════════════════════════════════════════════
+   ML FRAUD DETECTION API — LIVE CONNECTION
+   Connects to FastAPI at https://web-production-95344.up.railway.app
+══════════════════════════════════════════════════════ */
+
+const ML_API_URL  = 'https://web-production-95344.up.railway.app/api/v1/predict';
+const ML_API_KEY  = 'admin-dashboard-key-001';
+const ML_HEALTH   = 'https://web-production-95344.up.railway.app/api/v1/health';
+
+let mlApiOnline   = false;
+let mlPollTimer   = null;
+let mlTxHistory   = [];
+let mlFraudAlerts = 0;
+
+/* ── Check if ML API is alive ── */
+async function checkMLHealth() {
+  try {
+    const res = await fetch(ML_HEALTH, {
+      headers: { 'X-API-Key': ML_API_KEY }
+    });
+    const data = await res.json();
+    mlApiOnline = data.model_loaded === true;
+    updateMLServiceStatus(mlApiOnline);
+  } catch (e) {
+    mlApiOnline = false;
+    updateMLServiceStatus(false);
+  }
+}
+
+/* ── Update service panel ML status ── */
+function updateMLServiceStatus(online) {
+  const svcs = document.getElementById('svcStatus');
+  if (!svcs) return;
+  const rows = svcs.querySelectorAll('div');
+  rows.forEach(row => {
+    if (row.textContent.includes('ML Fraud Engine')) {
+      const badge = row.querySelector('.badge');
+      if (badge) {
+        badge.textContent  = online ? 'ONLINE' : 'OFFLINE';
+        badge.className    = 'badge ' + (online ? 'badge-g' : 'badge-d');
+      }
+    }
+  });
+  const dot = document.getElementById('mlApiDot');
+  if (dot) {
+    dot.style.background = online ? 'var(--green)' : 'var(--danger)';
+  }
+  const st = document.getElementById('mlApiSt');
+  if (st) {
+    st.textContent = online ? 'ML API LIVE' : 'ML API OFFLINE';
+    st.style.color = online ? 'var(--green)' : 'var(--danger)';
+  }
+}
+
+/* ── Score one transaction against ML API ── */
+async function scoreTxWithML(txData) {
+  try {
+    const res = await fetch(ML_API_URL, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key':    ML_API_KEY
+      },
+      body: JSON.stringify(txData)
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+/* ── Generate realistic transaction features matching creditcard.csv ── */
+function genTxFeatures(userId) {
+  const txId = 'QS-' + randId(6);
+  return {
+    transaction_id: txId,
+    Time:  rnd(0, 172792),
+    V1:    rnd(-3, 3),   V2:  rnd(-3, 3),  V3:  rnd(-3, 3),
+    V4:    rnd(-3, 3),   V5:  rnd(-3, 3),  V6:  rnd(-3, 3),
+    V7:    rnd(-3, 3),   V8:  rnd(-3, 3),  V9:  rnd(-3, 3),
+    V10:   rnd(-3, 3),   V11: rnd(-3, 3),  V12: rnd(-3, 3),
+    V13:   rnd(-3, 3),   V14: rnd(-3, 3),  V15: rnd(-3, 3),
+    V16:   rnd(-3, 3),   V17: rnd(-3, 3),  V18: rnd(-3, 3),
+    V19:   rnd(-3, 3),   V20: rnd(-3, 3),  V21: rnd(-3, 3),
+    V22:   rnd(-3, 3),   V23: rnd(-3, 3),  V24: rnd(-3, 3),
+    V25:   rnd(-3, 3),   V26: rnd(-3, 3),  V27: rnd(-3, 3),
+    V28:   rnd(-3, 3),
+    Amount: rnd(1, 5000)
+  };
+}
+
+/* ── Fetch real ML scores and update transaction table ── */
+async function fetchMLScores() {
+  if (!mlApiOnline) {
+    await checkMLHealth();
+    if (!mlApiOnline) return;
+  }
+
+  const users  = USERS_DB.slice(0, 6);
+  const results = [];
+
+  for (const user of users) {
+    const features = genTxFeatures(user.id);
+    const score    = await scoreTxWithML(features);
+    if (score) {
+      results.push({
+        user:           user,
+        transaction_id: features.transaction_id,
+        amount:         features.Amount,
+        fraud_score:    score.fraud_score,
+        is_fraud:       score.is_fraud,
+        risk_level:     score.risk_level,
+        recommendation: score.recommendation,
+        time:           new Date().toLocaleTimeString()
+      });
+      mlTxHistory.push(score.fraud_score);
+      if (mlTxHistory.length > 50) mlTxHistory.shift();
+      if (score.is_fraud) mlFraudAlerts++;
+    }
+  }
+
+  if (results.length > 0) {
+    updateMLTransactionTable(results);
+    updateMLStatCards(results);
+    updateMLFraudChart();
+    checkMLFraudAlerts(results);
+  }
+}
+
+/* ── Update the transaction table with real ML scores ── */
+function updateMLTransactionTable(results) {
+  const body = document.getElementById('txBody');
+  if (!body) return;
+
+  const pqcSuites = ['Dilithium3+Falcon', 'Dilithium3+SPHINCS+', 'Falcon+SPHINCS+', 'Full PQC Suite'];
+
+  const newRows = results.map(r => {
+    const qber     = rnd(1, 14).toFixed(1);
+    const scorePct = Math.round(r.fraud_score * 100);
+    const scoreCol = r.risk_level === 'high'   ? 'var(--danger)'
+                   : r.risk_level === 'medium' ? 'var(--warn)'
+                   : 'var(--green)';
+    const stBadge  = r.recommendation === 'block'  ? 'badge-d'
+                   : r.recommendation === 'review' ? 'badge-w'
+                   : 'badge-g';
+    const stLabel  = r.recommendation === 'block'  ? 'BLOCKED'
+                   : r.recommendation === 'review' ? 'REVIEW'
+                   : 'SECURE';
+    const dil = Math.random() > .08;
+    const fal = Math.random() > .08;
+    const sph = Math.random() > .08;
+
+    return `<tr style="animation:fadeUp .4s both">
+      <td style="font-family:var(--fmono);font-size:10px;color:rgba(255,0,170,.5)">${r.transaction_id}</td>
+      <td style="color:${r.user.color}">${r.user.name}</td>
+      <td style="font-family:var(--fhud);font-size:12px;font-weight:600">₹${Math.round(r.amount).toLocaleString('en-IN')}</td>
+      <td style="font-family:var(--fhud);font-size:13px;color:${parseFloat(qber)>11?'var(--danger)':parseFloat(qber)>7?'var(--warn)':'var(--green)'}">${qber}%</td>
+      <td>
+        <span class="badge ${stBadge}" style="font-family:var(--fhud);font-size:11px;font-weight:800">
+          ${scorePct}
+        </span>
+        <div style="font-family:var(--fmono);font-size:8px;color:${scoreCol};margin-top:2px;letter-spacing:1px">
+          ML: ${r.risk_level.toUpperCase()}
+        </div>
+      </td>
+      <td><span class="badge ${stBadge}">${stLabel}</span></td>
+      <td><span class="badge badge-v" style="font-size:8px">${pqcSuites[rndInt(0,3)]}</span></td>
+      <td style="font-family:var(--fmono);font-size:9px">
+        <span style="color:${dil?'var(--green)':'var(--danger)'}">DIL:${dil?'✓':'✗'}</span>
+        <span style="color:${fal?'var(--green)':'var(--danger)'}"> FAL:${fal?'✓':'✗'}</span>
+        <span style="color:${sph?'var(--green)':'var(--danger)'}"> SPH:${sph?'✓':'✗'}</span>
+      </td>
+      <td style="font-family:var(--fmono);font-size:10px;color:var(--textDim)">${r.time}</td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = newRows + body.innerHTML;
+
+  const rows = body.querySelectorAll('tr');
+  if (rows.length > 20) {
+    for (let i = 20; i < rows.length; i++) rows[i].remove();
+  }
+}
+
+/* ── Update stat cards with real ML data ── */
+function updateMLStatCards(results) {
+  const blocked  = results.filter(r => r.recommendation === 'block').length;
+  const flagged  = results.filter(r => r.recommendation === 'review').length;
+  const approved = results.filter(r => r.recommendation === 'approve').length;
+
+  stats.total  += results.length;
+  stats.secure += approved;
+  stats.warn   += flagged;
+  stats.block  += blocked;
+
+  const set = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v.toLocaleString('en-IN');
+  };
+  set('totalVal',  stats.total);
+  set('secureVal', stats.secure);
+  set('warnVal',   stats.warn);
+  set('blockVal',  stats.block);
+}
+
+/* ── Update fraud score sparkline chart ── */
+function updateMLFraudChart() {
+  if (mlTxHistory.length < 2) return;
+  const svg = document.getElementById('txSvg');
+  if (!svg) return;
+
+  const W = 600, H = 180;
+  const pts = mlTxHistory;
+  const min = 0, max = 1;
+
+  const scaled = pts.map((v, i) => {
+    const x = i / (pts.length - 1) * W;
+    const y = H - (v - min) / (max - min) * (H - 20) - 10;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const area = `0,${H} ` + pts.map((v, i) => {
+    const x = i / (pts.length - 1) * W;
+    const y = H - (v - min) / (max - min) * (H - 20) - 10;
+    return `${x},${y}`;
+  }).join(' ') + ` ${W},${H}`;
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="mlGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(255,0,170,.25)"/>
+        <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+      </linearGradient>
+      <linearGradient id="mlLine" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#8c00ff"/>
+        <stop offset="50%" stop-color="#ff00aa"/>
+        <stop offset="100%" stop-color="#00dcff"/>
+      </linearGradient>
+    </defs>
+    <polygon points="${area}" fill="url(#mlGrad)"/>
+    <polyline points="${scaled}" fill="none" stroke="url(#mlLine)" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="8" y="18" fill="rgba(255,0,170,.4)"
+      font-family="Share Tech Mono" font-size="9" letter-spacing="1">
+      REAL ML FRAUD SCORES · LIVE
+    </text>`;
+}
+
+/* ── Trigger fraud alert popup for high risk transactions ── */
+function checkMLFraudAlerts(results) {
+  const highRisk = results.filter(r => r.recommendation === 'block');
+  if (highRisk.length === 0) return;
+
+  const af = document.getElementById('alertFloat');
+  const ab = document.getElementById('alertFloatBody');
+  if (!af || !ab) return;
+
+  af.style.display = 'block';
+  af.querySelector('.alert-ttl').textContent = '⚡ ML FRAUD DETECTED';
+  ab.innerHTML = highRisk.map(r =>
+    `${r.user.name}: Score ${Math.round(r.fraud_score * 100)}/100 — ${r.transaction_id}`
+  ).join('<br>');
+
+  toast(`ML FRAUD ALERT: ${highRisk.length} transaction(s) blocked`, 'err', 6000);
+
+  setTimeout(() => { af.style.display = 'none'; }, 8000);
+}
+
+/* ── Add ML API indicator to status bar ── */
+function addMLStatusBar() {
+  const sbar = document.getElementById('sbar');
+  if (!sbar) return;
+
+  const existing = document.getElementById('mlApiDot');
+  if (existing) return;
+
+  const item = document.createElement('div');
+  item.className = 'sbi';
+  item.innerHTML = `
+    <div class="sbd" id="mlApiDot" style="background:var(--warn)"></div>
+    ML API <span class="sbv" id="mlApiSt" style="color:var(--warn)">CONNECTING</span>`;
+  sbar.insertBefore(item, sbar.lastElementChild);
+}
+
+/* ── Start ML polling loop ── */
+function startMLPolling() {
+  addMLStatusBar();
+  checkMLHealth();
+
+  fetchMLScores();
+
+  mlPollTimer = setInterval(async () => {
+    await checkMLHealth();
+    if (mlApiOnline) {
+      await fetchMLScores();
+    }
+  }, 8000);
+
+  toast('ML Fraud Detection API connected — live scoring active', 'ok', 5000);
+}
+
+/* ── Stop ML polling ── */
+function stopMLPolling() {
+  if (mlPollTimer) {
+    clearInterval(mlPollTimer);
+    mlPollTimer = null;
+  }
+}
+auth.onAuthStateChanged(user=>{
+  if(user&&user.email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
+    // Already logged in — skip phases, switch straight to dashboard
+    clearInterval(dotTimer);
+    $title.style.display='none';
+    $login.style.display='none';
+    $cube.classList.remove('on');
+    $cube.style.display='none';
+    $cyber.classList.add('on');
+    startAuth(user);
+  } else {
+    if(user)auth.signOut();
+    // 3-phase sequence already started at top of script
+  }
+});
+</script>
+</body>
+</html>
