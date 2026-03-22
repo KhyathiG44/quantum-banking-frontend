@@ -5,7 +5,139 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>QUANTUMSECURE — Admin Command Centre · SPECTRAL BREACH</title>
 
-<script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.69/build/spline-viewer.js"></script>
+<script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.69/build/spline-viewer.js">
+// ── FIREBASE CONFIG ──
+var _adminFbApp = null, _adminFbDb = null;
+var FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyBnqM4f7xSkrt3DZPuKDoM-bWA0dkRU2-E",
+  authDomain:        "quantum-cryptography-khyathi.firebaseapp.com",
+  projectId:         "quantum-cryptography-khyathi",
+  storageBucket:     "quantum-cryptography-khyathi.firebasestorage.app",
+  messagingSenderId: "999201837651",
+  appId:             "1:999201837651:web:fb14efdfe4f1b46d536ca6"
+};
+
+function initAdminFirebase() {
+  var s1 = document.createElement('script');
+  s1.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js';
+  s1.onload = function() {
+    var s2 = document.createElement('script');
+    s2.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js';
+    s2.onload = function() {
+      try {
+        _adminFbApp = firebase.initializeApp(FIREBASE_CONFIG, 'admin');
+        _adminFbDb  = firebase.firestore(_adminFbApp);
+        console.log('Admin Firebase connected!');
+        startPendingTxPolling();
+      } catch(e) { console.error('Admin Firebase error:', e); }
+    };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+}
+
+// ── POLL FOR PENDING TRANSACTIONS ──
+function startPendingTxPolling() {
+  if (!_adminFbDb) return;
+  setInterval(async function() {
+    try {
+      var snap = await _adminFbDb.collection('pending_transactions')
+        .where('status','==','pending')
+        .orderBy('createdAt','desc')
+        .limit(10)
+        .get();
+      var pending = [];
+      snap.forEach(function(doc) { pending.push(doc.data()); });
+      renderPendingTransactions(pending);
+      updatePendingBadge(pending.length);
+    } catch(e) {}
+  }, 3000);
+}
+
+function updatePendingBadge(count) {
+  var badge = document.getElementById('pending-badge');
+  if (badge) {
+    badge.textContent = count > 0 ? count + ' PENDING' : 'NO PENDING';
+    badge.style.background = count > 0 ? 'rgba(245,185,66,.2)' : 'rgba(46,216,153,.1)';
+    badge.style.color = count > 0 ? '#f5b942' : '#2ed899';
+    badge.style.borderColor = count > 0 ? 'rgba(245,185,66,.4)' : 'rgba(46,216,153,.2)';
+  }
+}
+
+function renderPendingTransactions(pending) {
+  var el = document.getElementById('pending-tx-list');
+  if (!el) return;
+  if (!pending.length) {
+    el.innerHTML = '<div style="padding:24px;text-align:center;font-family:monospace;font-size:.8rem;color:#666">No pending transactions — all clear ✓</div>';
+    return;
+  }
+  el.innerHTML = pending.map(function(tx) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:rgba(245,185,66,.04);border:1px solid rgba(245,185,66,.2);border-radius:12px;margin-bottom:10px;flex-wrap:wrap;gap:12px">' +
+      '<div style="display:flex;flex-direction:column;gap:4px;min-width:200px">' +
+        '<div style="font-weight:700;font-size:.9rem;color:#ede7ff">' + tx.fromName + ' <span style="color:#f5b942;font-size:.75rem">(' + tx.fromEmail + ')</span></div>' +
+        '<div style="font-family:monospace;font-size:.72rem;color:#888">ID: ' + tx.id + ' · IP: ' + (tx.ip||'unknown') + '</div>' +
+        '<div style="font-family:monospace;font-size:.72rem;color:#888">PQC: ' + (tx.pqc||'Kyber-1024') + ' · ' + tx.type + '</div>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<div style="font-size:1.4rem;font-weight:800;color:#b87ffe">$' + tx.amount.toLocaleString() + '</div>' +
+        '<div style="font-size:.76rem;color:#888">→ ' + tx.to + '</div>' +
+      '</div>' +
+      '<div style="font-family:monospace;font-size:.72rem;color:#888;text-align:center">' +
+        '<div>' + tx.date + ' ' + tx.time + '</div>' +
+        '<div style="color:' + (tx.fraudPassed?'#2ed899':'#f1405a') + '">' + (tx.fraudPassed?'ML: PASSED':'ML: FLAGGED') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button onclick="approveTx(\'' + tx.id + '\')" style="padding:8px 18px;background:rgba(46,216,153,.15);border:1px solid rgba(46,216,153,.35);border-radius:8px;color:#2ed899;cursor:pointer;font-weight:700;font-size:.82rem">✓ Approve</button>' +
+        '<button onclick="rejectTx(\'' + tx.id + '\')" style="padding:8px 18px;background:rgba(241,64,90,.15);border:1px solid rgba(241,64,90,.35);border-radius:8px;color:#f1405a;cursor:pointer;font-weight:700;font-size:.82rem">✕ Reject</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+window.approveTx = async function(txId) {
+  if (!_adminFbDb) return;
+  try {
+    await _adminFbDb.collection('pending_transactions').doc(txId).update({
+      status:     'approved',
+      approvedAt: new Date().toISOString(),
+      approvedBy: 'admin'
+    });
+    showAdminToast('✓ Transaction ' + txId + ' APPROVED', 'success');
+  } catch(e) {
+    showAdminToast('Error approving transaction: ' + e.message, 'error');
+  }
+};
+
+window.rejectTx = async function(txId) {
+  var reason = prompt('Enter rejection reason:') || 'Rejected by admin';
+  if (!_adminFbDb) return;
+  try {
+    await _adminFbDb.collection('pending_transactions').doc(txId).update({
+      status:       'rejected',
+      rejectedAt:   new Date().toISOString(),
+      rejectedBy:   'admin',
+      rejectReason: reason
+    });
+    showAdminToast('✕ Transaction ' + txId + ' REJECTED', 'error');
+  } catch(e) {
+    showAdminToast('Error rejecting transaction: ' + e.message, 'error');
+  }
+};
+
+function showAdminToast(msg, type) {
+  var colors = { success:'#2ed899', error:'#f1405a', info:'#b87ffe', warning:'#f5b942' };
+  var div = document.createElement('div');
+  div.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;background:rgba(0,0,0,.9);border:1px solid '+colors[type]+';border-radius:10px;color:'+colors[type]+';font-family:monospace;font-size:.84rem;animation:slideIn .3s ease';
+  div.textContent = msg;
+  document.body.appendChild(div);
+  setTimeout(function(){ div.remove(); }, 4000);
+}
+
+// Auto-init Firebase when page loads
+window.addEventListener('load', function() {
+  setTimeout(initAdminFirebase, 1000);
+});
+</script>
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -721,6 +853,22 @@ select.inp{appearance:none;cursor:pointer;}
         <div class="sc cc"><div class="sc-lbl">SECURE PASSED</div><div class="sc-val" id="secureVal">—</div><div class="sc-d"><span class="up">99.1%</span> PQC verified</div></div>
         <div class="sc cw"><div class="sc-lbl">FLAGGED</div><div class="sc-val" id="warnVal">—</div><div class="sc-d">Under ML review</div></div>
         <div class="sc cd"><div class="sc-lbl">BLOCKED</div><div class="sc-val" id="blockVal">—</div><div class="sc-d">Auto-blocked by AI</div></div>
+      </div>
+<div class="sc cd"><div class="sc-lbl">BLOCKED</div><div class="sc-val" id="blockVal">—</div><div class="sc-d">Auto-blocked by AI</div></div>
+      </div>
+
+      <!-- PENDING TRANSACTIONS APPROVAL PANEL -->
+      <div style="margin-bottom:20px;padding:24px;background:rgba(245,185,66,.04);border:1px solid rgba(245,185,66,.2);border-radius:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <div style="font-family:monospace;font-size:.72rem;letter-spacing:.14em;color:#f5b942;margin-bottom:4px">// TRANSACTION APPROVAL QUEUE</div>
+            <h2 style="font-size:1.1rem;font-weight:700;color:#ede7ff">Pending Admin Approval</h2>
+          </div>
+          <span id="pending-badge" style="padding:4px 14px;border-radius:20px;font-family:monospace;font-size:.72rem;font-weight:700;background:rgba(46,216,153,.1);color:#2ed899;border:1px solid rgba(46,216,153,.2)">NO PENDING</span>
+        </div>
+        <div id="pending-tx-list">
+          <div style="padding:24px;text-align:center;font-family:monospace;font-size:.8rem;color:#666">Connecting to Firebase...</div>
+        </div>
       </div>
       <div class="g2">
         <div class="pnl"><div class="pnl-title">LIVE TRANSACTION FEED <div class="live-dot" style="margin-left:auto">LIVE</div></div><svg style="width:100%;height:180px;display:block;" id="txSvg" viewBox="0 0 600 180" preserveAspectRatio="none"></svg></div>
